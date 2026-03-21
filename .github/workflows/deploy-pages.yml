@@ -19,6 +19,8 @@ concurrency:
 
 jobs:
   deploy:
+    env:
+      GH_PAGES_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -28,11 +30,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Pages
-        if: ${{ secrets.GH_PAGES_TOKEN != '' }}
+        if: ${{ env.GH_PAGES_TOKEN != '' }}
         uses: actions/configure-pages@v5
         with:
           # With a PAT secret this step can auto-enable Pages on first run.
-          token: ${{ secrets.GH_PAGES_TOKEN }}
+          token: ${{ env.GH_PAGES_TOKEN }}
           enablement: true
 
       - name: Upload artifact
