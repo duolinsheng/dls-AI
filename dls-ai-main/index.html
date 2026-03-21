@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>多邻省 AI 学习助手</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <h1>多邻省 AI 学习助手</h1>
+        <p>支持基础 AI 对话与上海话/中文互译</p>
+      </header>
+
+      <section class="panel config-panel">
+        <h2>模型配置</h2>
+        <div class="grid">
+          <label>
+            API Key
+            <input id="apiKey" type="password" placeholder="sk-..." />
+          </label>
+          <label>
+            Base URL
+            <input
+              id="baseUrl"
+              type="text"
+              value="https://api.openai.com/v1"
+              placeholder="https://api.openai.com/v1"
+            />
+          </label>
+          <label>
+            Model
+            <input id="model" type="text" value="gpt-4o-mini" placeholder="gpt-4o-mini" />
+          </label>
+        </div>
+        <button id="saveConfig" class="btn">保存配置</button>
+        <small>说明：配置只保存在当前浏览器的本地存储中。</small>
+      </section>
+
+      <section class="panel">
+        <h2>AI 对话</h2>
+        <div id="chatHistory" class="history"></div>
+        <div class="composer">
+          <textarea
+            id="chatInput"
+            rows="3"
+            placeholder="输入你想问的问题，例如：请用简单例子解释上海话和普通话的差异。"
+          ></textarea>
+          <button id="sendChat" class="btn">发送</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>上海话 / 中文 互译</h2>
+        <div class="translate-controls">
+          <label>
+            翻译方向
+            <select id="direction">
+              <option value="zh_to_sh">中文 → 上海话</option>
+              <option value="sh_to_zh">上海话 → 中文</option>
+            </select>
+          </label>
+        </div>
+        <textarea
+          id="translateInput"
+          rows="4"
+          placeholder="输入要翻译的文本..."
+        ></textarea>
+        <button id="translateBtn" class="btn">开始翻译</button>
+        <div class="result">
+          <h3>翻译结果</h3>
+          <pre id="translateOutput"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
