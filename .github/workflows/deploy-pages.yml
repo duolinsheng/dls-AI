@@ -26,6 +26,12 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          # If GH_PAGES_TOKEN is provided, configure-pages can auto-enable Pages
+          # on first run. Otherwise it falls back to github.token and expects
+          # Pages to be enabled manually in repository settings.
+          token: ${{ secrets.GH_PAGES_TOKEN != '' && secrets.GH_PAGES_TOKEN || github.token }}
+          enablement: ${{ secrets.GH_PAGES_TOKEN != '' }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
