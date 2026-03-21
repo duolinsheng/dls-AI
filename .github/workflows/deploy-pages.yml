@@ -5,6 +5,9 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 permissions:
   contents: read
   pages: write
@@ -25,13 +28,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Pages
+        if: ${{ secrets.GH_PAGES_TOKEN != '' }}
         uses: actions/configure-pages@v5
         with:
-          # If GH_PAGES_TOKEN is provided, configure-pages can auto-enable Pages
-          # on first run. Otherwise it falls back to github.token and expects
-          # Pages to be enabled manually in repository settings.
-          token: ${{ secrets.GH_PAGES_TOKEN != '' && secrets.GH_PAGES_TOKEN || github.token }}
-          enablement: ${{ secrets.GH_PAGES_TOKEN != '' }}
+          # With a PAT secret this step can auto-enable Pages on first run.
+          token: ${{ secrets.GH_PAGES_TOKEN }}
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
