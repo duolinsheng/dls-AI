@@ -99,15 +99,25 @@ async function callChatAPI(messages) {
       model: cfg.model || "gpt-4o-mini",
       messages,
       temperature: 0.3,
+      stream: false,
     }),
   });
 
+  const rawText = await res.text();
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`模型请求失败（${res.status}）：${text}`);
+    throw new Error(`模型请求失败（${res.status}）：${rawText}`);
   }
 
-  const data = await res.json();
+  let data;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    const preview = rawText.slice(0, 200).replace(/\s+/g, " ");
+    throw new Error(
+      `接口返回的不是 JSON。请检查 Base URL/模型服务是否兼容 OpenAI Chat Completions。响应片段：${preview}`,
+    );
+  }
+
   const content = data?.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error("模型返回为空，请检查接口和模型配置。");
