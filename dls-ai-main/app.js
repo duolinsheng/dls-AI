@@ -63,7 +63,7 @@ function getConfig() {
     return {
       apiKey: "",
       baseUrl: "http://localhost:11434",
-      model: "qwen2.5:7b",
+      model: "qwen3.5:4b",
     };
   }
 
@@ -73,7 +73,7 @@ function getConfig() {
     return {
       apiKey: "",
       baseUrl: "http://localhost:11434",
-      model: "qwen2.5:7b",
+      model: "qwen3.5:4b",
     };
   }
 }
@@ -94,7 +94,7 @@ function loadConfigToForm() {
   const cfg = getConfig();
   apiKeyEl.value = cfg.apiKey || "";
   baseUrlEl.value = cfg.baseUrl || "http://localhost:11434";
-  modelEl.value = cfg.model || "qwen2.5:7b";
+  modelEl.value = cfg.model || "qwen3.5:4b";
 }
 
 async function callChatAPI(messages) {
@@ -112,7 +112,7 @@ async function callChatAPI(messages) {
     method: "POST",
     headers,
     body: JSON.stringify({
-      model: cfg.model || "qwen2.5:7b",
+      model: cfg.model || "qwen3.5:4b",
       messages,
       stream: false,
       options: {
@@ -193,7 +193,7 @@ saveConfigBtn.addEventListener("click", () => {
   const cfg = {
     apiKey: apiKeyEl.value.trim(),
     baseUrl: baseUrlEl.value.trim() || "http://localhost:11434",
-    model: modelEl.value.trim() || "qwen2.5:7b",
+    model: modelEl.value.trim() || "qwen3.5:4b",
   };
   setConfig(cfg);
   alert("配置已保存");

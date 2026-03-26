@@ -60,7 +60,7 @@ python3 -m http.server 8080
 |------|--------|------|
 | API Key | 空 | AI 服务密钥（可选） |
 | Base URL | `http://localhost:11434` | AI 服务地址 |
-| Model | `qwen2.5:7b` | 使用的模型名称 |
+| Model | `qwen3.5:4b` | 使用的模型名称 |
 
 ### 常用配置示例
 
@@ -70,7 +70,7 @@ python3 -m http.server 8080
 
 **使用本地 Ollama:**
 - Base URL: `http://localhost:11434`
-- Model: `qwen2.5:7b`
+- Model: `qwen3.5:4b`
 
 配置会自动保存到浏览器的 `localStorage`。
 

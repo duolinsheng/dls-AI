@@ -22,8 +22,8 @@ python3 -m http.server 8080
 页面中可配置：
 
 - `API Key`
-- `Base URL`（默认：`https://api.openai.com/v1`）
-- `Model`（默认：`gpt-4o-mini`）
+- `Base URL`（默认：`https://localhost:11434`）
+- `Model`（默认：`qwen3.5:4b`）
 
 保存后会写入浏览器 `localStorage`。
 
