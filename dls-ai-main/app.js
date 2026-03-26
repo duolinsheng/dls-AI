@@ -36,8 +36,25 @@ const localZhToShMap = {
   很好: "老好额",
 };
 
+const localZhToYueMap = {
+  你好: "你好",
+  谢谢: "多谢",
+  我: "我",
+  你: "你",
+  我们: "我哋",
+  今天: "今日",
+  明天: "听日",
+  这个: "呢个",
+  那个: "嗰个",
+  什么: "咩",
+  很好: "几好",
+};
+
 const localShToZhMap = Object.fromEntries(
   Object.entries(localZhToShMap).map(([zh, sh]) => [sh, zh]),
+);
+const localYueToZhMap = Object.fromEntries(
+  Object.entries(localZhToYueMap).map(([zh, yue]) => [yue, zh]),
 );
 
 function getConfig() {
@@ -45,8 +62,8 @@ function getConfig() {
   if (!raw) {
     return {
       apiKey: "",
-      baseUrl: "https://api.openai.com/v1",
-      model: "gpt-4o-mini",
+      baseUrl: "http://localhost:11434",
+      model: "qwen2.5:7b",
     };
   }
 
@@ -55,8 +72,8 @@ function getConfig() {
   } catch {
     return {
       apiKey: "",
-      baseUrl: "https://api.openai.com/v1",
-      model: "gpt-4o-mini",
+      baseUrl: "http://localhost:11434",
+      model: "qwen2.5:7b",
     };
   }
 }
@@ -76,30 +93,31 @@ function renderMessage(role, text) {
 function loadConfigToForm() {
   const cfg = getConfig();
   apiKeyEl.value = cfg.apiKey || "";
-  baseUrlEl.value = cfg.baseUrl || "https://api.openai.com/v1";
-  modelEl.value = cfg.model || "gpt-4o-mini";
+  baseUrlEl.value = cfg.baseUrl || "http://localhost:11434";
+  modelEl.value = cfg.model || "qwen2.5:7b";
 }
 
 async function callChatAPI(messages) {
   const cfg = getConfig();
-  if (!cfg.apiKey) {
-    throw new Error("未配置 API Key。请先在“模型配置”中保存。");
-  }
-
   const baseUrl = (cfg.baseUrl || "").replace(/\/+$/, "");
-  const url = `${baseUrl}/chat/completions`;
+  const url = `${baseUrl}/api/chat`;
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (cfg.apiKey) {
+    headers.Authorization = `Bearer ${cfg.apiKey}`;
+  }
 
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${cfg.apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
-      model: cfg.model || "gpt-4o-mini",
+      model: cfg.model || "qwen2.5:7b",
       messages,
-      temperature: 0.3,
       stream: false,
+      options: {
+        temperature: 0.3,
+      },
     }),
   });
 
@@ -114,32 +132,68 @@ async function callChatAPI(messages) {
   } catch {
     const preview = rawText.slice(0, 200).replace(/\s+/g, " ");
     throw new Error(
-      `接口返回的不是 JSON。请检查 Base URL/模型服务是否兼容 OpenAI Chat Completions。响应片段：${preview}`,
+      `接口返回的不是 JSON。请检查 Ollama 服务地址与模型配置。响应片段：${preview}`,
     );
   }
 
-  const content = data?.choices?.[0]?.message?.content;
+  const content = data?.message?.content || data?.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error("模型返回为空，请检查接口和模型配置。");
+    throw new Error("模型返回为空，请检查 Ollama 接口和模型配置。");
   }
   return content.trim();
 }
 
 function localTranslate(input, direction) {
-  const dict = direction === "zh_to_sh" ? localZhToShMap : localShToZhMap;
-  let out = input;
-  const entries = Object.entries(dict).sort((a, b) => b[0].length - a[0].length);
-  for (const [k, v] of entries) {
-    out = out.split(k).join(v);
+  function applyDict(text, dict) {
+    let out = text;
+    const entries = Object.entries(dict).sort((a, b) => b[0].length - a[0].length);
+    for (const [k, v] of entries) {
+      out = out.split(k).join(v);
+    }
+    return out;
   }
-  return out;
+
+  if (direction === "zh_to_sh") return applyDict(input, localZhToShMap);
+  if (direction === "sh_to_zh") return applyDict(input, localShToZhMap);
+  if (direction === "zh_to_yue") return applyDict(input, localZhToYueMap);
+  if (direction === "yue_to_zh") return applyDict(input, localYueToZhMap);
+  if (direction === "sh_to_yue") {
+    const zh = applyDict(input, localShToZhMap);
+    return applyDict(zh, localZhToYueMap);
+  }
+  if (direction === "yue_to_sh") {
+    const zh = applyDict(input, localYueToZhMap);
+    return applyDict(zh, localZhToShMap);
+  }
+  return input;
+}
+
+function getTranslatePrompt(direction) {
+  const promptMap = {
+    zh_to_sh:
+      "你是翻译助手。请把用户输入的中文翻译成自然的上海话，表达简洁，必要时保留原词并用括号补充解释。只输出翻译结果。",
+    sh_to_zh:
+      "你是翻译助手。请把用户输入的上海话翻译成标准中文，表达自然。只输出翻译结果。",
+    zh_to_yue:
+      "你是翻译助手。请把用户输入的中文翻译成自然粤语。可使用常见粤语字词，表达地道。只输出翻译结果。",
+    yue_to_zh:
+      "你是翻译助手。请把用户输入的粤语翻译成标准中文，表达自然。只输出翻译结果。",
+    sh_to_yue:
+      "你是翻译助手。请把用户输入的上海话翻译成自然粤语，语义准确、表达地道。只输出翻译结果。",
+    yue_to_sh:
+      "你是翻译助手。请把用户输入的粤语翻译成自然上海话，语义准确、表达地道。只输出翻译结果。",
+  };
+  return (
+    promptMap[direction] ||
+    "你是翻译助手。请将用户输入翻译成目标语言，保持原意、表达自然。只输出翻译结果。"
+  );
 }
 
 saveConfigBtn.addEventListener("click", () => {
   const cfg = {
     apiKey: apiKeyEl.value.trim(),
-    baseUrl: baseUrlEl.value.trim() || "https://api.openai.com/v1",
-    model: modelEl.value.trim() || "gpt-4o-mini",
+    baseUrl: baseUrlEl.value.trim() || "http://localhost:11434",
+    model: modelEl.value.trim() || "qwen2.5:7b",
   };
   setConfig(cfg);
   alert("配置已保存");
@@ -167,17 +221,7 @@ translateBtn.addEventListener("click", async () => {
   translateOutputEl.textContent = "翻译中...";
   const direction = directionEl.value;
 
-  const cfg = getConfig();
-  if (!cfg.apiKey) {
-    const fallback = localTranslate(input, direction);
-    translateOutputEl.textContent = `${fallback}\n\n（当前未配置 API Key，已使用本地基础词典兜底翻译）`;
-    return;
-  }
-
-  const systemPrompt =
-    direction === "zh_to_sh"
-      ? "你是上海话翻译助手。请把用户输入的中文翻译成自然的上海话，保持简洁；必要时保留原词并给出括号解释。只输出翻译结果。"
-      : "你是上海话翻译助手。请把用户输入的上海话翻译成标准中文，表达自然。只输出翻译结果。";
+  const systemPrompt = getTranslatePrompt(direction);
 
   try {
     const result = await callChatAPI([
