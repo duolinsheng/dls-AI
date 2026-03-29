@@ -100,6 +100,15 @@ function loadConfigToForm() {
 async function callChatAPI(messages) {
   const cfg = getConfig();
   const baseUrl = (cfg.baseUrl || "").replace(/\/+$/, "");
+  if (!baseUrl) {
+    throw new Error("Base URL 不能为空，请填写 http://localhost:11434");
+  }
+  if (/^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(baseUrl)) {
+    throw new Error(
+      "检测到本地地址使用了 https。Ollama 默认是 http，请改为 http://localhost:11434",
+    );
+  }
+
   const url = `${baseUrl}/api/chat`;
   const headers = {
     "Content-Type": "application/json",
@@ -108,18 +117,27 @@ async function callChatAPI(messages) {
     headers.Authorization = `Bearer ${cfg.apiKey}`;
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: cfg.model || "qwen3.5:4b",
-      messages,
-      stream: false,
-      options: {
-        temperature: 0.3,
-      },
-    }),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: cfg.model || "qwen3.5:4b",
+        messages,
+        stream: false,
+        options: {
+          temperature: 0.3,
+        },
+      }),
+    });
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "未知网络错误";
+    throw new Error(
+      `无法连接到模型服务（${reason}）。请确认：1) Ollama 正在运行；2) Base URL 使用 http://localhost:11434；3) 若页面来自 GitHub Pages（https），浏览器会拦截对本地 http 的访问。`,
+    );
+  }
 
   const rawText = await res.text();
   if (!res.ok) {
