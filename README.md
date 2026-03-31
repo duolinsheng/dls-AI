@@ -19,7 +19,7 @@
 
 ```
 dls-AI/
-├── dls-ai-main/          # 核心应用模块（Web 界面）
+├── main/                 # 核心应用模块（Web 界面）
 │   ├── index.html        # 主页面
 │   ├── styles.css        # 样式文件
 │   ├── app.js            # 应用逻辑
@@ -38,7 +38,7 @@ dls-AI/
 ### 方式一：直接打开（推荐）
 
 ```bash
-cd dls-ai-main
+cd main
 open index.html  # macOS
 # 或直接双击打开 index.html
 ```
@@ -46,7 +46,7 @@ open index.html  # macOS
 ### 方式二：使用本地服务器
 
 ```bash
-cd dls-ai-main
+cd main
 python3 -m http.server 8080
 ```
 
@@ -111,9 +111,9 @@ python3 -m http.server 8080
 
 ### 核心组件
 
-- [`app.js`](dls-ai-main/app.js): 包含对话、翻译、配置管理等核心逻辑
-- [`index.html`](dls-ai-main/index.html): 应用主界面
-- [`styles.css`](dls-ai-main/styles.css): 样式定义
+- [`app.js`](main/app.js): 包含对话、翻译、配置管理等核心逻辑
+- [`index.html`](main/index.html): 应用主界面
+- [`styles.css`](main/styles.css): 样式定义
 
 ### 支持的翻译方向
 
@@ -145,7 +145,7 @@ yue_to_sh   // 粤语 → 上海话
 
 ## 📖 相关文档
 
-- [核心应用详细说明](dls-ai-main/README.md)
+- [核心应用详细说明](main/README.md)
 - [课程反思记录](reflection/lesson_reflection/)
 - [架构设计文档](docs/) (待完善)
 - [评测报告](eval/) (待完善)

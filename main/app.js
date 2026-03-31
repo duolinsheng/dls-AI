@@ -1,4 +1,7 @@
 const configKey = "dls-ai-config";
+const DEFAULT_BASE_URL = "http://localhost:11434";
+const DEFAULT_MODEL = "qwen3.5:4b";
+const REQUEST_TIMEOUT_MS = 30000;
 const chatHistoryEl = document.getElementById("chatHistory");
 
 const apiKeyEl = document.getElementById("apiKey");
@@ -62,18 +65,23 @@ function getConfig() {
   if (!raw) {
     return {
       apiKey: "",
-      baseUrl: "http://localhost:11434",
-      model: "qwen3.5:4b",
+      baseUrl: DEFAULT_BASE_URL,
+      model: DEFAULT_MODEL,
     };
   }
 
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return {
+      apiKey: parsed.apiKey || "",
+      baseUrl: parsed.baseUrl || DEFAULT_BASE_URL,
+      model: parsed.model || DEFAULT_MODEL,
+    };
   } catch {
     return {
       apiKey: "",
-      baseUrl: "http://localhost:11434",
-      model: "qwen3.5:4b",
+      baseUrl: DEFAULT_BASE_URL,
+      model: DEFAULT_MODEL,
     };
   }
 }
@@ -93,8 +101,43 @@ function renderMessage(role, text) {
 function loadConfigToForm() {
   const cfg = getConfig();
   apiKeyEl.value = cfg.apiKey || "";
-  baseUrlEl.value = cfg.baseUrl || "http://localhost:11434";
-  modelEl.value = cfg.model || "qwen3.5:4b";
+  baseUrlEl.value = cfg.baseUrl || DEFAULT_BASE_URL;
+  modelEl.value = cfg.model || DEFAULT_MODEL;
+}
+
+function isLikelyOpenAIEndpoint(baseUrl) {
+  return /\/v1$/i.test(baseUrl) || /api\.openai\.com$/i.test(baseUrl);
+}
+
+function buildRequestUrl(baseUrl) {
+  if (/api\.openai\.com$/i.test(baseUrl)) {
+    return `${baseUrl}/v1/chat/completions`;
+  }
+  if (/\/v1$/i.test(baseUrl)) {
+    return `${baseUrl}/chat/completions`;
+  }
+  return `${baseUrl}/api/chat`;
+}
+
+function getErrorMessage(err) {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+function extractContentFromResponse(data) {
+  if (data && data.message && typeof data.message.content === "string") {
+    return data.message.content.trim();
+  }
+  if (
+    data &&
+    Array.isArray(data.choices) &&
+    data.choices[0] &&
+    data.choices[0].message &&
+    typeof data.choices[0].message.content === "string"
+  ) {
+    return data.choices[0].message.content.trim();
+  }
+  return "";
 }
 
 async function callChatAPI(messages) {
@@ -109,7 +152,8 @@ async function callChatAPI(messages) {
     );
   }
 
-  const url = `${baseUrl}/api/chat`;
+  const useOpenAIStyle = isLikelyOpenAIEndpoint(baseUrl);
+  const url = buildRequestUrl(baseUrl);
   const headers = {
     "Content-Type": "application/json",
   };
@@ -118,43 +162,62 @@ async function callChatAPI(messages) {
   }
 
   let res;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     res = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: cfg.model || "qwen3.5:4b",
+        model: cfg.model || DEFAULT_MODEL,
         messages,
         stream: false,
-        options: {
-          temperature: 0.3,
-        },
+        ...(useOpenAIStyle
+          ? { temperature: 0.3 }
+          : {
+              options: {
+                temperature: 0.3,
+              },
+            }),
       }),
+      signal: controller.signal,
     });
   } catch (error) {
     const reason =
-      error instanceof Error ? error.message : "未知网络错误";
+      error instanceof DOMException && error.name === "AbortError"
+        ? `请求超时（>${REQUEST_TIMEOUT_MS / 1000} 秒）`
+        : getErrorMessage(error);
     throw new Error(
-      `无法连接到模型服务（${reason}）。请确认：1) Ollama 正在运行；2) Base URL 使用 http://localhost:11434；3) 若页面来自 GitHub Pages（https），浏览器会拦截对本地 http 的访问。`,
+      `无法连接到模型服务（${reason}）。请确认：1) Base URL 配置正确；2) 本地 Ollama 服务已启动（若你在用 Ollama）；3) 若页面来自 GitHub Pages（https），浏览器会拦截对本地 http 的访问。`,
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const rawText = await res.text();
-  if (!res.ok) {
-    throw new Error(`模型请求失败（${res.status}）：${rawText}`);
-  }
 
   let data;
   try {
     data = JSON.parse(rawText);
   } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    const apiError =
+      (data && data.error && (data.error.message || data.error.code)) ||
+      rawText.slice(0, 200);
+    throw new Error(`模型请求失败（${res.status}）：${apiError}`);
+  }
+
+  if (!data) {
     const preview = rawText.slice(0, 200).replace(/\s+/g, " ");
     throw new Error(
       `接口返回的不是 JSON。请检查 Ollama 服务地址与模型配置。响应片段：${preview}`,
     );
   }
 
-  const content = data?.message?.content || data?.choices?.[0]?.message?.content;
+  const content = extractContentFromResponse(data);
   if (!content) {
     throw new Error("模型返回为空，请检查 Ollama 接口和模型配置。");
   }
@@ -210,8 +273,8 @@ function getTranslatePrompt(direction) {
 saveConfigBtn.addEventListener("click", () => {
   const cfg = {
     apiKey: apiKeyEl.value.trim(),
-    baseUrl: baseUrlEl.value.trim() || "http://localhost:11434",
-    model: modelEl.value.trim() || "qwen3.5:4b",
+    baseUrl: baseUrlEl.value.trim() || DEFAULT_BASE_URL,
+    model: modelEl.value.trim() || DEFAULT_MODEL,
   };
   setConfig(cfg);
   alert("配置已保存");
@@ -229,7 +292,7 @@ sendChatBtn.addEventListener("click", async () => {
     conversation.push({ role: "assistant", content: reply });
     renderMessage("assistant", reply);
   } catch (err) {
-    renderMessage("assistant", `请求失败：${err.message}`);
+    renderMessage("assistant", `请求失败：${getErrorMessage(err)}`);
   }
 });
 
@@ -249,7 +312,7 @@ translateBtn.addEventListener("click", async () => {
     translateOutputEl.textContent = result;
   } catch (err) {
     const fallback = localTranslate(input, direction);
-    translateOutputEl.textContent = `${fallback}\n\n（模型翻译失败：${err.message}；已回退到本地基础词典）`;
+    translateOutputEl.textContent = `${fallback}\n\n（模型翻译失败：${getErrorMessage(err)}；已回退到本地基础词典）`;
   }
 });
 

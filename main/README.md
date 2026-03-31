@@ -1,4 +1,4 @@
-# dls-ai-main
+# dls-ai-main（目录名：`main`）
 
 多邻省 AI 学习助手（MVP）：
 
@@ -11,7 +11,7 @@
 也可以使用任意静态服务器运行，例如：
 
 ```bash
-cd dls-ai-main
+cd main
 python3 -m http.server 8080
 ```
 
@@ -35,7 +35,7 @@ python3 -m http.server 8080
 ## 3. GitHub Pages 部署
 
 仓库已提供 GitHub Actions 工作流：`.github/workflows/deploy-pages.yml`。  
-推送到 `main` 分支后自动部署 `dls-ai-main` 目录到 Pages。
+推送到 `main` 分支后自动部署 `main` 目录到 Pages。
 
 你需要在 GitHub 仓库设置里确认：
 
