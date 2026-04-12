@@ -71,11 +71,59 @@
           rows="4"
           placeholder="输入要翻译的文本..."
         ></textarea>
-        <button id="translateBtn" class="btn">开始翻译</button>
+        <div class="translate-actions">
+          <button id="translateBtn" class="btn">开始翻译</button>
+          <button id="clearTranslateBtn" class="btn secondary">清空</button>
+        </div>
         <div class="result">
           <h3>翻译结果</h3>
-          <pre id="translateOutput"></pre>
+          <div class="result-content">
+            <pre id="translateOutput"></pre>
+            <div class="result-actions">
+              <button id="speakOutputBtn" class="icon-btn" title="朗读">🔊</button>
+              <button id="copyOutputBtn" class="icon-btn" title="复制">📋</button>
+              <button id="favoriteOutputBtn" class="icon-btn" title="收藏">⭐</button>
+            </div>
+          </div>
         </div>
+      </section>
+
+      <section class="panel">
+        <h2>收藏夹</h2>
+        <div class="favorites-list">
+          <div id="favoritesList" class="favorites-content"></div>
+          <p id="noFavorites" class="no-data">暂无收藏内容</p>
+        </div>
+        <div class="favorites-actions">
+          <button id="clearFavoritesBtn" class="btn secondary">清空收藏</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>历史记录</h2>
+        <div class="history-controls">
+          <button id="clearChatHistoryBtn" class="btn secondary">清空对话历史</button>
+          <button id="clearTranslateHistoryBtn" class="btn secondary">清空翻译历史</button>
+        </div>
+        <div class="history-list">
+          <h3>翻译历史</h3>
+          <div id="translateHistoryList" class="history-content"></div>
+          <p id="noTranslateHistory" class="no-data">暂无翻译历史</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>粤语词典查询</h2>
+        <div class="translate-controls">
+          <input
+            type="text"
+            id="yueDictSearch"
+            placeholder="输入粤语词汇查询..."
+          />
+          <button id="yueDictSearchBtn" class="btn">查询</button>
+        </div>
+        <div id="yueDictResult" class="yue-dict-result"></div>
+        <p id="noYueDictResult" class="no-data">请输入词汇进行查询</p>
       </section>
     </main>
 

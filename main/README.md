@@ -7,15 +7,19 @@
 
 ## 1. 本地运行
 
-这是纯前端静态项目，直接打开 `index.html` 即可使用。  
-也可以使用任意静态服务器运行，例如：
+### 使用 npm（推荐）
 
 ```bash
 cd main
-python3 -m http.server 8080
+npm install
+npm start
 ```
 
 然后访问 `http://localhost:8080`。
+
+### 其他方式
+
+这是纯前端静态项目，也可以直接打开 `index.html` 即可使用。
 
 ## 2. 模型配置说明
 

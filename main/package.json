@@ -1,0 +1,21 @@
+{
+  "name": "dls-ai-main",
+  "version": "1.0.0",
+  "description": "多邻省 AI 学习助手 - 方言学习与翻译助手",
+  "main": "app.js",
+  "scripts": {
+    "start": "npx http-server -p 8080 -c-1",
+    "dev": "npx http-server -p 8080"
+  },
+  "keywords": [
+    "ai",
+    "dialect",
+    "translation",
+    "ollama"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

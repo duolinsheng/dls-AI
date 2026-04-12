@@ -6,6 +6,8 @@
   --accent: #005f73;
   --accent-2: #0a9396;
   --border: #e7dec9;
+  --favorite: #e9b800;
+  --delete: #d93025;
 }
 
 * {
@@ -90,10 +92,26 @@ textarea {
   padding: 9px 16px;
   font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
 .btn:hover {
   filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.btn.secondary {
+  background: #e0e7ff;
+  color: var(--accent);
+  margin-right: 8px;
+}
+
+.btn.secondary:hover {
+  background: #c7d2fe;
+}
+
+.btn:active {
+  transform: translateY(0);
 }
 
 .history {
@@ -112,6 +130,7 @@ textarea {
   border-radius: 10px;
   line-height: 1.5;
   white-space: pre-wrap;
+  background: #f9fafb;
 }
 
 .msg.user {
@@ -130,7 +149,11 @@ textarea {
   margin-top: 12px;
 }
 
-pre {
+.result-content {
+  position: relative;
+}
+
+.result-content pre {
   background: #fff;
   border: 1px solid #d7deeb;
   border-radius: 10px;
@@ -138,10 +161,197 @@ pre {
   white-space: pre-wrap;
   word-break: break-word;
   min-height: 64px;
+  margin: 0;
 }
 
-small {
-  display: block;
-  margin-top: 8px;
+.result-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d2d8e5;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
   color: var(--muted);
+}
+
+.icon-btn:hover {
+  background: #f0f4ff;
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: scale(1.05);
+}
+
+.translate-controls {
+  margin-bottom: 12px;
+}
+
+.translate-actions {
+  display: flex;
+  margin-top: 8px;
+}
+
+.favorites-list,
+.history-list {
+  margin-top: 12px;
+}
+
+.favorites-content,
+.history-content {
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid #d7deeb;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fff;
+  margin-bottom: 12px;
+}
+
+.favorites-item,
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 8px;
+  margin-bottom: 8px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.favorites-item-content,
+.history-item-content {
+  flex: 1;
+  margin-right: 8px;
+}
+
+.favorites-item-actions,
+.history-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.history-item-actions .icon-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.history-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.history-list h3 {
+  margin: 16px 0 8px;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.no-data {
+  text-align: center;
+  color: var(--muted);
+  font-style: italic;
+  padding: 20px;
+}
+
+.favorites-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.msg-actions .icon-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.translate-item-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.translate-item-actions .icon-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.yue-dict-result {
+  margin-top: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #d7deeb;
+  border-radius: 10px;
+}
+
+.yue-dict-item {
+  padding: 10px;
+  margin-bottom: 8px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.yue-dict-item h4 {
+  margin: 0 0 4px;
+  color: var(--accent);
+}
+
+.yue-dict-item p {
+  margin: 2px 0;
+  font-size: 0.9rem;
+}
+
+.yue-dict-item .pinyin {
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.yue-dict-item .example {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.yue-dict-item .explanation {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #d7deeb;
+}
+
+.yue-dict-item .play-btn {
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.yue-dict-item .play-btn:hover {
+  background: var(--accent-2);
 }
