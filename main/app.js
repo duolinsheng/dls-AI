@@ -79,6 +79,9 @@ const localYueToZhMap = Object.fromEntries(
 
 let yueDictionary = [];
 let yueDictionaryLoaded = false;
+let yueDictionaryLoadPromise = null;
+const yueAudioAvailabilityCache = new Map();
+const yueAudioResolveCache = new Map();
 
 function getConfig() {
   const raw = localStorage.getItem(configKey);
@@ -302,132 +305,267 @@ function getTranslateDirectionName(direction) {
   return directionMap[direction] || direction;
 }
 
+function parseCsvLine(line) {
+  const fields = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      fields.push(current.trim());
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+  return fields;
+}
+
 function loadYueDictionary() {
-  if (yueDictionaryLoaded) return;
-  
-  fetch("read/yyzd.csv")
-    .then(response => response.text())
-    .then(csvText => {
-      const lines = csvText.split("\n");
+  if (yueDictionaryLoaded) return Promise.resolve();
+  if (yueDictionaryLoadPromise) return yueDictionaryLoadPromise;
+
+  yueDictionaryLoadPromise = fetch("read/yyzd.csv")
+    .then((response) => response.text())
+    .then((csvText) => {
+      const lines = csvText.split(/\r?\n/);
       yueDictionary = [];
-      
+
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (!line) continue;
-        
-        const parts = line.split(",");
+
+        const parts = parseCsvLine(line);
         if (parts.length >= 3) {
-          const simp = parts[0];
-          const trad = parts[1];
-          const pinyin = parts[2];
+          const simp = parts[0] || "";
+          const trad = parts[1] || "";
+          const pinyin = parts[2] || "";
           const example = parts[3] || "";
           const explanation = parts[4] || "";
-          
+          const alt = parts[5] || "";
+
           yueDictionary.push({
             simp,
             trad,
             pinyin,
             example,
             explanation,
+            alt,
           });
         }
       }
-      
+
       yueDictionaryLoaded = true;
       console.log(`粤语词典加载完成，共 ${yueDictionary.length} 条记录`);
     })
-    .catch(err => {
+    .catch((err) => {
+      yueDictionaryLoadPromise = null;
+      yueDictionaryLoaded = false;
       console.error("加载粤语词典失败:", err);
+      throw err;
     });
+
+  return yueDictionaryLoadPromise;
 }
 
-function findYueWord(word) {
-  if (!yueDictionaryLoaded) return null;
-  
-  const result = yueDictionary.find(item => 
-    item.simp === word || item.trad === word
-  );
-  
-  return result || null;
+function findYueWords(word) {
+  if (!yueDictionaryLoaded) return [];
+  return yueDictionary.filter((item) => item.simp === word || item.trad === word);
+}
+
+function getPrimaryPinyin(pinyin) {
+  if (!pinyin || !pinyin.trim()) return "";
+  return pinyin.toLowerCase().trim().split("/")[0].trim();
+}
+
+function withToneFallbacks(pinyin) {
+  const out = [pinyin];
+  const match = pinyin.match(/^(.*?)([1-9])$/);
+  if (!match) return out;
+  const stem = match[1];
+  const tone = match[2];
+  if (tone === "7" || tone === "8" || tone === "9") {
+    out.push(`${stem}1`, `${stem}3`, `${stem}6`);
+  }
+  return out;
+}
+
+function withSpellingFallbacks(pinyin) {
+  const out = [pinyin];
+  const queue = [pinyin];
+  const seen = new Set([pinyin]);
+  const rules = [
+    (value) => value.replace(/^(.*)eui([1-9])$/, "$1eoi$2"),
+    (value) => value.replace(/^(.*)eun([1-9])$/, "$1eon$2"),
+    (value) => value.replace(/^(.*)eung([1-9])$/, "$1oeng$2"),
+    (value) => value.replace(/^(.*)euk([1-9])$/, "$1oek$2"),
+    (value) => value.replace(/^(.*)eut([1-9])$/, "$1eot$2"),
+    (value) =>
+      value.replace(
+        /^((?:gw|kw|ng|ch|zh|sh|[bcdfghjklmnpqrstvwxyz]))a([1-9])$/,
+        "$1aa$2",
+      ),
+    (value) => value.replace(/^hng([1-9])$/, "ng$1"),
+    (value) => value.replace(/^yu([1-9])$/, "jyu$1"),
+    (value) => value.replace(/^yun([1-9])$/, "jyun$1"),
+  ];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    for (const applyRule of rules) {
+      const next = applyRule(current);
+      if (next !== current && !seen.has(next)) {
+        seen.add(next);
+        out.push(next);
+        queue.push(next);
+      }
+    }
+  }
+
+  return out;
+}
+
+function withInitialFallbacks(pinyin) {
+  const out = [pinyin];
+  if (pinyin.startsWith("ch")) out.push(`c${pinyin.slice(2)}`);
+  if (pinyin.startsWith("zh")) out.push(`z${pinyin.slice(2)}`);
+  if (pinyin.startsWith("sh")) out.push(`s${pinyin.slice(2)}`);
+  if (pinyin.startsWith("y")) out.push(`j${pinyin.slice(1)}`);
+  if (pinyin.startsWith("j")) out.push(`z${pinyin.slice(1)}`);
+  return out;
+}
+
+function getYuePinyinCandidates(pinyin) {
+  const pinyinMain = getPrimaryPinyin(pinyin);
+  if (!pinyinMain) return [];
+
+  const pinyinMap = {
+    yu5: "jyu5",
+    yu6: "jyu6",
+    seui3: "seoi3",
+    seoi6: "seoi6",
+    jeung1: "jung1",
+    jeung3: "jung3",
+    jeong1: "jung1",
+    jeong3: "jung3",
+    jaang1: "zoeng1",
+    jaang2: "zoeng2",
+    jaang3: "zoeng3",
+    jaang6: "zoeng6",
+    gaang1: "gong1",
+    gaang2: "gong2",
+    gaang3: "gong3",
+    gaang6: "gong6",
+    maang5: "maang5",
+    maang6: "maang6",
+    paang4: "pang4",
+    paang6: "pang6",
+    faang1: "fong1",
+    faang2: "fong2",
+    faang3: "fong3",
+    faang6: "fong6",
+    naang5: "nong5",
+    naang6: "nong6",
+    laang6: "long6",
+    laang5: "long5",
+    yaang1: "jong1",
+    yaang2: "jung2",
+    yaang3: "jung3",
+    yaang6: "jung6",
+    yung1: "jung1",
+    yung2: "jung2",
+    yung3: "jung3",
+    yung6: "jung6",
+    waang1: "wong1",
+    waang2: "wong2",
+    waang3: "wong3",
+    waang6: "wong6",
+    yu1: "jyu1",
+    yu2: "jyu2",
+    yu3: "jyu3",
+    yu4: "jyu4",
+    yun1: "jyun1",
+    yun2: "jyun2",
+    yun3: "jyun3",
+    yun4: "jyun4",
+    yun5: "jyun5",
+    yun6: "jyun6",
+  };
+
+  const seeds = [pinyinMain];
+  const mapped = pinyinMap[pinyinMain];
+  if (mapped) seeds.push(mapped);
+
+  const candidates = [];
+  for (const seed of seeds) {
+    for (const toneVariant of withToneFallbacks(seed)) {
+      for (const spellingVariant of withSpellingFallbacks(toneVariant)) {
+        for (const initialVariant of withInitialFallbacks(spellingVariant)) {
+          if (!candidates.includes(initialVariant)) {
+            candidates.push(initialVariant);
+          }
+        }
+      }
+    }
+  }
+
+  return candidates;
 }
 
 function getYuePinyinUrl(pinyin) {
-  if (!pinyin || !pinyin.trim()) return null;
-  
-  const pinyinLower = pinyin.toLowerCase().trim();
-  const pinyinMain = pinyinLower.split("/")[0].trim();
-  
-  const pinyinMap = {
-    'yu5': 'jyu5',
-    'yu6': 'jyu6',
-    'seui3': 'seoi3',
-    'seoi6': 'seoi6',
-    'jeung1': 'jung1',
-    'jeung3': 'jung3',
-    'jeong1': 'jung1',
-    'jeong3': 'jung3',
-    'jaang1': 'zoeng1',
-    'jaang2': 'zoeng2',
-    'jaang3': 'zoeng3',
-    'jaang6': 'zoeng6',
-    'gaang1': 'gong1',
-    'gaang2': 'gong2',
-    'gaang3': 'gong3',
-    'gaang6': 'gong6',
-    'maang5': 'maang5',
-    'maang6': 'maang6',
-    'paang4': 'pang4',
-    'paang6': 'pang6',
-    'faang1': 'fong1',
-    'faang2': 'fong2',
-    'faang3': 'fong3',
-    'faang6': 'fong6',
-    'naang5': 'nong5',
-    'naang6': 'nong6',
-    'laang6': 'long6',
-    'laang5': 'long5',
-    'yaang1': 'jong1',
-    'yaang2': 'jung2',
-    'yaang3': 'jung3',
-    'yaang6': 'jung6',
-    'yung1': 'jung1',
-    'yung2': 'jung2',
-    'yung3': 'jung3',
-    'yung6': 'jung6',
-    'waang1': 'wong1',
-    'waang2': 'wong2',
-    'waang3': 'wong3',
-    'waang6': 'wong6',
-    'aa1': 'aa1',
-    'aa2': 'aa2',
-    'aa3': 'aa3',
-    'aa4': 'aa4',
-    'aa5': 'aa5',
-    'aa6': 'aa6',
-  };
-  
-  const mappedPinyin = pinyinMap[pinyinMain] || pinyinMain;
-  const mp3Path = `read/jyutping_female/${mappedPinyin}.mp3`;
-  return mp3Path;
+  const candidates = getYuePinyinCandidates(pinyin);
+  if (candidates.length === 0) return null;
+  return `read/jyutping_female/${candidates[0]}.mp3`;
 }
 
-function checkYueAudioExists(pinyin) {
-  const mp3Path = getYuePinyinUrl(pinyin);
-  if (!mp3Path) return false;
-  
-  return new Promise((resolve) => {
-    const audio = new Audio(mp3Path);
-    audio.preload = "none";
-    audio.onerror = () => resolve(false);
-    audio.oncanplaythrough = () => resolve(true);
-    audio.onloadeddata = () => resolve(true);
-    
-    const timer = setTimeout(() => {
-      resolve(false);
-    }, 500);
-    
-    audio.load();
-  });
+async function checkAudioPathExists(path) {
+  if (yueAudioAvailabilityCache.has(path)) {
+    return yueAudioAvailabilityCache.get(path);
+  }
+  let ok = false;
+  try {
+    const response = await fetch(path, { method: "HEAD" });
+    ok = response.ok;
+  } catch {
+    ok = false;
+  }
+  yueAudioAvailabilityCache.set(path, ok);
+  return ok;
+}
+
+async function resolveYueAudioPath(pinyin) {
+  const pinyinMain = getPrimaryPinyin(pinyin);
+  if (!pinyinMain) return null;
+  if (yueAudioResolveCache.has(pinyinMain)) {
+    return yueAudioResolveCache.get(pinyinMain);
+  }
+
+  const candidates = getYuePinyinCandidates(pinyin);
+  for (const candidate of candidates) {
+    const path = `read/jyutping_female/${candidate}.mp3`;
+    const exists = await checkAudioPathExists(path);
+    if (exists) {
+      yueAudioResolveCache.set(pinyinMain, path);
+      return path;
+    }
+  }
+
+  yueAudioResolveCache.set(pinyinMain, null);
+  return null;
+}
+
+async function checkYueAudioExists(pinyin) {
+  const audioPath = await resolveYueAudioPath(pinyin);
+  return Boolean(audioPath);
 }
 
 function loadFavorites() {
@@ -558,10 +696,10 @@ function speakText(text) {
   }
 }
 
-function playYuePinyin(pinyin) {
+async function playYuePinyin(pinyin, resolvedPath = "") {
   if (!pinyin) return;
-  
-  const mp3Path = getYuePinyinUrl(pinyin);
+
+  const mp3Path = resolvedPath || (await resolveYueAudioPath(pinyin));
   if (!mp3Path) {
     console.warn(`发音路径无效: ${pinyin}`);
     alert("发音文件不存在或无法播放");
@@ -590,36 +728,56 @@ function renderYueDictResult(results) {
   noYueDictResultEl.style.display = "none";
   yueDictResultEl.innerHTML = "";
   
-  results.forEach(item => {
+  results.forEach((item) => {
     const el = document.createElement("div");
     el.className = "yue-dict-item";
-    
-    const pinyinUrl = getYuePinyinUrl(item.pinyin);
-    const hasAudio = pinyinUrl && item.pinyin && item.pinyin.trim();
-    
+
     el.innerHTML = `
       <h4>${item.simp} <span style="font-size:0.85em;color:var(--muted)">(${item.trad})</span></h4>
       <p class="pinyin">拼音：${item.pinyin}</p>
       ${item.example ? `<p class="example">示例：${item.example}</p>` : ""}
       ${item.explanation ? `<p class="explanation">解释：${item.explanation}</p>` : ""}
-      ${hasAudio ? `<button class="play-btn" onclick="playYuePinyin('${item.pinyin.replace(/'/g, "\\'")}')">🔊 播放发音</button>` : `<span style="color:var(--muted);font-size:0.85em">（无发音文件）</span>`}
+      <div class="audio-action"><span style="color:var(--muted);font-size:0.85em">（检测发音中...）</span></div>
     `;
-    
     yueDictResultEl.appendChild(el);
+
+    const audioActionEl = el.querySelector(".audio-action");
+    resolveYueAudioPath(item.pinyin).then((audioPath) => {
+      if (!audioActionEl) return;
+      audioActionEl.innerHTML = "";
+      if (!audioPath) {
+        audioActionEl.innerHTML = `<span style="color:var(--muted);font-size:0.85em">（无发音文件）</span>`;
+        return;
+      }
+      const playBtn = document.createElement("button");
+      playBtn.className = "play-btn";
+      playBtn.textContent = "🔊 播放发音";
+      playBtn.addEventListener("click", () => {
+        playYuePinyin(item.pinyin, audioPath);
+      });
+      audioActionEl.appendChild(playBtn);
+    });
   });
 }
 
-function searchYueWord() {
+async function searchYueWord() {
   const word = yueDictSearchEl.value.trim();
   if (!word) {
     alert("请输入要查询的词汇");
     return;
   }
-  
-  const result = findYueWord(word);
-  
-  if (result) {
-    renderYueDictResult([result]);
+
+  try {
+    await loadYueDictionary();
+  } catch {
+    alert("粤语词典加载失败，请稍后重试");
+    return;
+  }
+
+  const results = findYueWords(word);
+
+  if (results.length > 0) {
+    renderYueDictResult(results);
   } else {
     renderYueDictResult([]);
     alert(`未找到词汇 "${word}" 的相关信息`);
@@ -741,4 +899,6 @@ yueDictSearchEl.addEventListener("keypress", (e) => {
 loadConfigToForm();
 renderFavorites();
 renderTranslateHistory();
-loadYueDictionary();
+loadYueDictionary().catch(() => {
+  // 首次预加载失败时，保留在查询时重试。
+});
