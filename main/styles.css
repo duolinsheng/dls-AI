@@ -8,6 +8,8 @@
   --border: #e7dec9;
   --favorite: #e9b800;
   --delete: #d93025;
+  --nav-bg: #ffffff;
+  --nav-shadow: rgba(0, 0, 0, 0.08);
 }
 
 * {
@@ -24,10 +26,91 @@ body {
     var(--bg);
 }
 
+/* 导航栏样式 */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: var(--nav-bg);
+  border-bottom: 2px solid var(--border);
+  box-shadow: 0 2px 8px var(--nav-shadow);
+  padding: 0 20px;
+}
+
+.nav-brand {
+  display: inline-block;
+  padding: 12px 0;
+}
+
+.nav-brand h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.nav-menu {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.nav-btn {
+  background: transparent;
+  border: none;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.nav-btn:hover {
+  background: rgba(0, 95, 115, 0.08);
+  color: var(--accent);
+}
+
+.nav-btn.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.nav-btn.active:hover {
+  background: var(--accent-2);
+}
+
 .app {
   max-width: 900px;
   margin: 0 auto;
   padding: 24px 16px 40px;
+}
+
+/* 页面切换样式 */
+.page {
+  display: none;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.page.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .hero h1 {
@@ -39,6 +122,48 @@ body {
 .hero p {
   margin-top: 8px;
   color: var(--muted);
+}
+
+/* 功能卡片网格 */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.feature-card {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: var(--accent);
+}
+
+.feature-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.feature-card h3 {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: 1.2rem;
+}
+
+.feature-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .panel {
@@ -354,4 +479,28 @@ textarea {
 
 .yue-dict-item .play-btn:hover {
   background: var(--accent-2);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0 10px;
+  }
+  
+  .nav-brand h1 {
+    font-size: 1.2rem;
+  }
+  
+  .nav-btn {
+    padding: 10px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .app {
+    padding: 16px 12px 32px;
+  }
 }

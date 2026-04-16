@@ -34,6 +34,47 @@ const yueDictSearchBtn = document.getElementById("yueDictSearchBtn");
 const yueDictResultEl = document.getElementById("yueDictResult");
 const noYueDictResultEl = document.getElementById("noYueDictResult");
 
+// 页面导航功能
+function navigateTo(pageName) {
+  // 隐藏所有页面
+  const pages = document.querySelectorAll('.page');
+  pages.forEach(page => page.classList.remove('active'));
+  
+  // 显示目标页面
+  const targetPage = document.getElementById(`page-${pageName}`);
+  if (targetPage) {
+    targetPage.classList.add('active');
+  }
+  
+  // 更新导航按钮状态
+  const navButtons = document.querySelectorAll('.nav-btn');
+  navButtons.forEach(btn => {
+    btn.classList.remove('active');
+    if (btn.dataset.page === pageName) {
+      btn.classList.add('active');
+    }
+  });
+  
+  // 保存当前页面到 localStorage
+  localStorage.setItem('dls-ai-current-page', pageName);
+}
+
+// 初始化导航
+function initNavigation() {
+  // 为所有导航按钮添加点击事件
+  const navButtons = document.querySelectorAll('.nav-btn');
+  navButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pageName = btn.dataset.page;
+      navigateTo(pageName);
+    });
+  });
+  
+  // 恢复上次访问的页面
+  const lastPage = localStorage.getItem('dls-ai-current-page') || 'home';
+  navigateTo(lastPage);
+}
+
 const conversation = [
   {
     role: "system",
@@ -696,6 +737,45 @@ function speakText(text) {
   }
 }
 
+function copyText(text) {
+  if (!text) return;
+  
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      console.log("文本已复制到剪贴板");
+    }).catch(err => {
+      console.error("复制失败:", err);
+      fallbackCopyText(text);
+    });
+  } else {
+    fallbackCopyText(text);
+  }
+}
+
+function fallbackCopyText(text) {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  
+  try {
+    const successful = document.execCommand("copy");
+    if (successful) {
+      console.log("文本已复制到剪贴板（使用 execCommand）");
+    } else {
+      alert("复制失败，请手动复制");
+    }
+  } catch (err) {
+    console.error("复制失败:", err);
+    alert("复制失败，请手动复制");
+  }
+  
+  document.body.removeChild(textArea);
+}
+
 async function playYuePinyin(pinyin, resolvedPath = "") {
   if (!pinyin) return;
 
@@ -895,6 +975,9 @@ yueDictSearchEl.addEventListener("keypress", (e) => {
     searchYueWord();
   }
 });
+
+// 初始化页面导航
+initNavigation();
 
 loadConfigToForm();
 renderFavorites();
