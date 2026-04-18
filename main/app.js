@@ -411,7 +411,9 @@ function findYueWords(word) {
 
 function getPrimaryPinyin(pinyin) {
   if (!pinyin || !pinyin.trim()) return "";
-  return pinyin.toLowerCase().trim().split("/")[0].trim();
+  const cleaned = pinyin.toLowerCase().trim().split("/")[0].trim();
+  const firstPart = cleaned.split(/\s+/)[0].trim();
+  return firstPart;
 }
 
 function withToneFallbacks(pinyin) {
