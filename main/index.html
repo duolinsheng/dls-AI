@@ -13,10 +13,14 @@
         <h1>🎓 多邻省 AI</h1>
       </div>
       <ul class="nav-menu">
-        <li><button class="nav-btn active" data-page="home">🏠 主页</button></li>
+        <li><button class="nav-btn" data-page="home">🏠 主页</button></li>
         <li><button class="nav-btn" data-page="chat">💬 AI对话</button></li>
         <li><button class="nav-btn" data-page="translate">🌐 翻译</button></li>
         <li><button class="nav-btn" data-page="dictionary">📖 词典</button></li>
+        <li><button class="nav-btn" data-page="phrases">📝 短语</button></li>
+        <li><button class="nav-btn" data-page="daily">📅 每日</button></li>
+        <li><button class="nav-btn" data-page="quiz">🎯 测验</button></li>
+        <li><button class="nav-btn" data-page="tones">🎵 声调</button></li>
         <li><button class="nav-btn" data-page="favorites">⭐ 收藏</button></li>
         <li><button class="nav-btn" data-page="history">📜 历史</button></li>
         <li><button class="nav-btn" data-page="settings">⚙️ 设置</button></li>
@@ -28,7 +32,7 @@
       <section id="page-home" class="page active">
         <header class="hero">
           <h1>多邻省 AI 学习助手</h1>
-          <p>支持 Ollama AI 对话与中文/上海话/粤语互译</p>
+          <p>支持 Ollama AI 粤语对话与学习</p>
         </header>
 
         <div class="features-grid">
@@ -40,17 +44,79 @@
           <div class="feature-card" onclick="navigateTo('translate')">
             <div class="feature-icon">🌐</div>
             <h3>多方言翻译</h3>
-            <p>中文、上海话、粤语互译</p>
+            <p>粤语翻译与学习</p>
           </div>
           <div class="feature-card" onclick="navigateTo('dictionary')">
             <div class="feature-icon">📖</div>
             <h3>粤语词典</h3>
             <p>查询粤语词汇和发音</p>
           </div>
+          <div class="feature-card" onclick="navigateTo('phrases')">
+            <div class="feature-icon">📝</div>
+            <h3>常用短语</h3>
+            <p>快速查看常用粤语表达</p>
+          </div>
+          <div class="feature-card" onclick="navigateTo('daily')">
+            <div class="feature-icon">📅</div>
+            <h3>每日一句</h3>
+            <p>每天学习一句实用粤语</p>
+          </div>
+          <div class="feature-card" onclick="navigateTo('quiz')">
+            <div class="feature-icon">🎯</div>
+            <h3>学习测验</h3>
+            <p>测试你的粤语学习成果</p>
+          </div>
           <div class="feature-card" onclick="navigateTo('favorites')">
             <div class="feature-icon">⭐</div>
             <h3>收藏夹</h3>
             <p>保存常用翻译内容</p>
+          </div>
+        </div>
+
+        <div class="daily-quote-section">
+          <h2>📅 今日粤语</h2>
+          <div id="homeDailyQuote" class="daily-quote">
+            <div class="quote-content">
+              <p class="quote-yue" id="homeQuoteYue">加载中...</p>
+              <p class="quote-zh" id="homeQuoteZh"></p>
+              <p class="quote-pinyin" id="homeQuotePinyin"></p>
+            </div>
+            <button id="homePlayQuoteBtn" class="icon-btn" title="播放发音">🔊</button>
+          </div>
+        </div>
+
+        <div class="progress-section">
+          <h2>📊 学习进度</h2>
+          <div class="progress-stats">
+            <div class="stat-card">
+              <div class="stat-icon">📝</div>
+              <div class="stat-value" id="statPhrasesLearned">0</div>
+              <div class="stat-label">已学短语</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🎯</div>
+              <div class="stat-value" id="statQuizCompleted">0</div>
+              <div class="stat-label">完成测验</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">⭐</div>
+              <div class="stat-value" id="statFavorites">0</div>
+              <div class="stat-label">收藏内容</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🔊</div>
+              <div class="stat-value" id="statAudioPlayed">0</div>
+              <div class="stat-label">播放发音</div>
+            </div>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-label">
+              <span>学习进度</span>
+              <span id="progressPercentage">0%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -64,7 +130,7 @@
             <textarea
               id="chatInput"
               rows="3"
-              placeholder="输入你想问的问题，例如：请用简单例子解释上海话和普通话的差异。"
+              placeholder="输入你想问的问题，例如：请用简单例子解释粤语语法。"
             ></textarea>
             <button id="sendChat" class="btn">发送</button>
           </div>
@@ -74,17 +140,13 @@
       <!-- 翻译页面 -->
       <section id="page-translate" class="page">
         <div class="panel">
-          <h2>🌐 中文 / 上海话 / 粤语 互译</h2>
+          <h2>🌐 中文 / 粤语 互译</h2>
           <div class="translate-controls">
             <label>
               翻译方向
               <select id="direction">
-                <option value="zh_to_sh">中文 → 上海话</option>
-                <option value="sh_to_zh">上海话 → 中文</option>
                 <option value="zh_to_yue">中文 → 粤语</option>
                 <option value="yue_to_zh">粤语 → 中文</option>
-                <option value="sh_to_yue">上海话 → 粤语</option>
-                <option value="yue_to_sh">粤语 → 上海话</option>
               </select>
             </label>
           </div>
@@ -138,6 +200,160 @@
           </div>
           <div class="favorites-actions">
             <button id="clearFavoritesBtn" class="btn secondary">清空收藏</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 常用短语页面 -->
+      <section id="page-phrases" class="page">
+        <div class="panel">
+          <h2>📝 常用粤语短语</h2>
+          <div class="phrase-categories">
+            <button class="phrase-cat-btn active" data-cat="greeting">问候</button>
+            <button class="phrase-cat-btn" data-cat="daily">日常</button>
+            <button class="phrase-cat-btn" data-cat="food">饮食</button>
+            <button class="phrase-cat-btn" data-cat="shopping">购物</button>
+            <button class="phrase-cat-btn" data-cat="emotion">情感</button>
+          </div>
+          <div id="phraseList" class="phrase-list"></div>
+        </div>
+      </section>
+
+      <!-- 每日一句页面 -->
+      <section id="page-daily" class="page">
+        <div class="panel">
+          <h2>📅 每日一句粤语</h2>
+          <div id="dailyQuote" class="daily-quote-large">
+            <div class="quote-content">
+              <p class="quote-yue" id="dailyQuoteYue">加载中...</p>
+              <p class="quote-zh" id="dailyQuoteZh"></p>
+              <p class="quote-pinyin" id="dailyQuotePinyin"></p>
+            </div>
+            <div class="quote-actions">
+              <button id="dailyPlayQuoteBtn" class="icon-btn" title="播放发音">🔊</button>
+              <button id="dailyNextQuoteBtn" class="btn">下一句</button>
+              <button id="dailyFavoriteQuoteBtn" class="icon-btn" title="收藏">⭐</button>
+            </div>
+          </div>
+          <div class="daily-history">
+            <h3>往期每日一句</h3>
+            <div id="dailyHistoryList" class="daily-history-content"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 测验页面 -->
+      <section id="page-quiz" class="page">
+        <div class="panel">
+          <h2>🎯 粤语学习测验</h2>
+          <div id="quizContainer" class="quiz-container">
+            <div id="quizStart" class="quiz-start">
+              <p>准备好测试你的粤语水平了吗？</p>
+              <div class="quiz-options">
+                <button id="startQuizBtn" class="btn">开始测验</button>
+                <select id="quizDifficulty">
+                  <option value="easy">简单</option>
+                  <option value="medium" selected>中等</option>
+                  <option value="hard">困难</option>
+                </select>
+              </div>
+              <div id="quizScore" class="quiz-score"></div>
+            </div>
+            <div id="quizQuestion" class="quiz-question" style="display:none;">
+              <div class="question-header">
+                <span id="questionCounter">问题 1/10</span>
+                <span id="currentScore">得分: 0</span>
+              </div>
+              <h3 id="questionText"></h3>
+              <div id="questionOptions" class="question-options"></div>
+              <div id="questionFeedback" class="question-feedback"></div>
+              <button id="nextQuestionBtn" class="btn" style="display:none;">下一题</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 声调练习页面 -->
+      <section id="page-tones" class="page">
+        <div class="panel">
+          <h2>🎵 粤语声调练习</h2>
+          <div class="tone-intro">
+            <p>粤语有6个基本声调（加上入声共9声），声调不同，意思也不同。</p>
+          </div>
+          <div class="tone-grid">
+            <div class="tone-card" data-tone="1">
+              <div class="tone-number">1</div>
+              <div class="tone-name">高平调</div>
+              <div class="tone-example">
+                <div class="yue">诗</div>
+                <div class="pinyin">si1</div>
+              </div>
+              <button class="tone-play-btn" data-pinyin="si1">🔊</button>
+            </div>
+            <div class="tone-card" data-tone="2">
+              <div class="tone-number">2</div>
+              <div class="tone-name">高升调</div>
+              <div class="tone-example">
+                <div class="yue">史</div>
+                <div class="pinyin">si2</div>
+              </div>
+              <button class="tone-play-btn" data-pinyin="si2">🔊</button>
+            </div>
+            <div class="tone-card" data-tone="3">
+              <div class="tone-number">3</div>
+              <div class="tone-name">中平调</div>
+              <div class="tone-example">
+                <div class="yue">试</div>
+                <div class="pinyin">si3</div>
+              </div>
+              <button class="tone-play-btn" data-pinyin="si3">🔊</button>
+            </div>
+            <div class="tone-card" data-tone="4">
+              <div class="tone-number">4</div>
+              <div class="tone-name">低降调</div>
+              <div class="tone-example">
+                <div class="yue">时</div>
+                <div class="pinyin">si4</div>
+              </div>
+              <button class="tone-play-btn" data-pinyin="si4">🔊</button>
+            </div>
+            <div class="tone-card" data-tone="5">
+              <div class="tone-number">5</div>
+              <div class="tone-name">低升调</div>
+              <div class="tone-example">
+                <div class="yue">市</div>
+                <div class="pinyin">si5</div>
+              </div>
+              <button class="tone-play-btn" data-pinyin="si5">🔊</button>
+            </div>
+            <div class="tone-card" data-tone="6">
+              <div class="tone-number">6</div>
+              <div class="tone-name">低平调</div>
+              <div class="tone-example">
+                <div class="yue">是</div>
+                <div class="pinyin">si6</div>
+              </div>
+              <button class="tone-play-btn" data-pinyin="si6">🔊</button>
+            </div>
+          </div>
+          <div class="tone-practice-section">
+            <h3>听音辨调练习</h3>
+            <div id="tonePracticeGame" class="tone-practice-game">
+              <div class="game-start">
+                <p>听发音，选择正确的声调</p>
+                <button id="startTonePracticeBtn" class="btn">开始练习</button>
+              </div>
+              <div id="toneQuestion" class="tone-question" style="display:none;">
+                <div class="tone-question-header">
+                  <span id="toneQuestionCounter">问题 1/10</span>
+                  <span id="toneScore">得分: 0</span>
+                </div>
+                <button id="playToneBtn" class="play-tone-btn">🔊 播放发音</button>
+                <div id="toneOptions" class="tone-options"></div>
+                <div id="toneFeedback" class="tone-feedback"></div>
+                <button id="nextToneBtn" class="btn" style="display:none;">下一题</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
