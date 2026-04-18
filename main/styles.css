@@ -1,29 +1,34 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 :root {
-  --bg: #f7f4ec;
-  --card: #fffdf8;
-  --text: #1f2937;
-  --muted: #5b6475;
-  --accent: #005f73;
-  --accent-2: #0a9396;
-  --border: #e7dec9;
-  --favorite: #e9b800;
-  --delete: #d93025;
-  --nav-bg: #ffffff;
-  --nav-shadow: rgba(0, 0, 0, 0.08);
+  --bg: #202028;
+  --card: #2d2d3a;
+  --text: #e0e0e0;
+  --muted: #8888a0;
+  --accent: #00ff88;
+  --accent-2: #00ccff;
+  --border: #4a4a6a;
+  --favorite: #ffcc00;
+  --delete: #ff4444;
+  --nav-bg: #1a1a24;
+  --nav-shadow: rgba(0, 0, 0, 0.5);
+  --pixel-size: 4px;
 }
 
 * {
   box-sizing: border-box;
+  image-rendering: pixelated;
 }
 
 body {
   margin: 0;
-  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
   color: var(--text);
-  background:
-    radial-gradient(circle at 10% -10%, #faedcd 0%, transparent 45%),
-    radial-gradient(circle at 90% 0%, #e9edc9 0%, transparent 35%),
-    var(--bg);
+  background: var(--bg);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 16px 16px;
 }
 
 /* 导航栏样式 */
@@ -32,8 +37,8 @@ body {
   top: 0;
   z-index: 1000;
   background: var(--nav-bg);
-  border-bottom: 2px solid var(--border);
-  box-shadow: 0 2px 8px var(--nav-shadow);
+  border-bottom: var(--pixel-size) solid var(--border);
+  box-shadow: 0 var(--pixel-size) 0 rgba(0, 0, 0, 0.5);
   padding: 0 20px;
 }
 
@@ -44,9 +49,10 @@ body {
 
 .nav-brand h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1rem;
   color: var(--accent);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
 }
 
 .nav-menu {
@@ -62,28 +68,24 @@ body {
   background: transparent;
   border: none;
   padding: 12px 16px;
-  font-size: 0.95rem;
-  font-weight: 500;
+  font-size: 0.6rem;
+  font-weight: normal;
   color: var(--muted);
   cursor: pointer;
-  border-radius: 8px 8px 0 0;
-  transition: all 0.2s;
+  transition: all 0.1s;
   white-space: nowrap;
+  font-family: inherit;
 }
 
 .nav-btn:hover {
-  background: rgba(0, 95, 115, 0.08);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
 }
 
 .nav-btn.active {
   background: var(--accent);
-  color: #fff;
-  font-weight: 600;
-}
-
-.nav-btn.active:hover {
-  background: var(--accent-2);
+  color: var(--bg);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.3);
 }
 
 .app {
@@ -95,7 +97,7 @@ body {
 /* 页面切换样式 */
 .page {
   display: none;
-  animation: fadeIn 0.3s ease-in-out;
+  animation: fadeIn 0.3s steps(5);
 }
 
 .page.active {
@@ -105,23 +107,23 @@ body {
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 .hero h1 {
   margin: 0;
-  font-size: clamp(1.7rem, 4.5vw, 2.4rem);
-  letter-spacing: 0.02em;
+  font-size: 1.2rem;
+  letter-spacing: 0.05em;
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.5);
 }
 
 .hero p {
   margin-top: 8px;
   color: var(--muted);
+  font-size: 0.6rem;
 }
 
 /* 功能卡片网格 */
@@ -134,50 +136,49 @@ body {
 
 .feature-card {
   background: var(--card);
-  border: 2px solid var(--border);
-  border-radius: 14px;
+  border: var(--pixel-size) solid var(--border);
   padding: 24px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  transition: all 0.1s;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 .feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.7);
   border-color: var(--accent);
 }
 
 .feature-icon {
-  font-size: 3rem;
+  font-size: 2.5rem;
   margin-bottom: 12px;
 }
 
 .feature-card h3 {
   margin: 0 0 8px;
   color: var(--accent);
-  font-size: 1.2rem;
+  font-size: 0.8rem;
 }
 
 .feature-card p {
   margin: 0;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.55rem;
 }
 
 .panel {
   background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: var(--pixel-size) solid var(--border);
   margin-top: 16px;
   padding: 16px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 h2 {
   margin: 0 0 12px;
-  font-size: 1.2rem;
+  font-size: 0.9rem;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
 }
 
 .grid {
@@ -188,7 +189,7 @@ h2 {
 
 label {
   display: block;
-  font-size: 0.92rem;
+  font-size: 0.6rem;
   color: var(--muted);
 }
 
@@ -197,11 +198,12 @@ textarea,
 select {
   width: 100%;
   margin-top: 6px;
-  border: 1px solid #d2d8e5;
-  border-radius: 10px;
+  border: var(--pixel-size) solid var(--border);
   padding: 10px;
   font: inherit;
-  background: #fff;
+  font-size: 0.6rem;
+  background: #1a1a24;
+  color: var(--text);
 }
 
 textarea {
@@ -211,59 +213,65 @@ textarea {
 .btn {
   margin-top: 12px;
   border: none;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #fff;
-  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
   padding: 9px 16px;
-  font-weight: 600;
+  font-weight: normal;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.1s;
+  font-family: inherit;
+  font-size: 0.6rem;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
 }
 
 .btn:hover {
-  filter: brightness(1.05);
-  transform: translateY(-1px);
+  background: var(--accent-2);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.7);
 }
 
 .btn.secondary {
-  background: #e0e7ff;
-  color: var(--accent);
+  background: var(--border);
+  color: var(--text);
   margin-right: 8px;
 }
 
 .btn.secondary:hover {
-  background: #c7d2fe;
+  background: var(--muted);
 }
 
 .btn:active {
-  transform: translateY(0);
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
 }
 
 .history {
   min-height: 160px;
   max-height: 360px;
   overflow: auto;
-  border: 1px solid #d7deeb;
-  border-radius: 10px;
+  border: var(--pixel-size) solid var(--border);
   padding: 12px;
-  background: #fff;
+  background: #1a1a24;
 }
 
 .msg {
   margin-bottom: 10px;
   padding: 8px 10px;
-  border-radius: 10px;
-  line-height: 1.5;
+  line-height: 1.8;
   white-space: pre-wrap;
-  background: #f9fafb;
+  background: var(--card);
+  border: 2px solid var(--border);
+  font-size: 0.6rem;
 }
 
 .msg.user {
-  background: #edf7ff;
+  background: #1a2a3a;
+  border-color: var(--accent-2);
 }
 
 .msg.assistant {
-  background: #f4f9f3;
+  background: #1a2a1a;
+  border-color: var(--accent);
 }
 
 .composer {
@@ -279,14 +287,16 @@ textarea {
 }
 
 .result-content pre {
-  background: #fff;
-  border: 1px solid #d7deeb;
-  border-radius: 10px;
+  background: #1a1a24;
+  border: var(--pixel-size) solid var(--border);
   padding: 12px;
   white-space: pre-wrap;
   word-break: break-word;
   min-height: 64px;
   margin: 0;
+  font-size: 0.6rem;
+  font-family: inherit;
+  color: var(--text);
 }
 
 .result-actions {
@@ -300,23 +310,21 @@ textarea {
 .icon-btn {
   width: 32px;
   height: 32px;
-  border: 1px solid #d2d8e5;
-  background: #fff;
-  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--card);
   cursor: pointer;
   font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.1s;
   color: var(--muted);
 }
 
 .icon-btn:hover {
-  background: #f0f4ff;
+  background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent);
-  transform: scale(1.05);
+  color: var(--bg);
 }
 
 .translate-controls {
@@ -337,10 +345,9 @@ textarea {
 .history-content {
   max-height: 200px;
   overflow-y: auto;
-  border: 1px solid #d7deeb;
-  border-radius: 10px;
+  border: var(--pixel-size) solid var(--border);
   padding: 8px;
-  background: #fff;
+  background: #1a1a24;
   margin-bottom: 12px;
 }
 
@@ -351,9 +358,9 @@ textarea {
   align-items: flex-start;
   padding: 8px;
   margin-bottom: 8px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  background: var(--card);
+  border: 2px solid var(--border);
+  font-size: 0.6rem;
 }
 
 .favorites-item-content,
@@ -384,15 +391,16 @@ textarea {
 
 .history-list h3 {
   margin: 16px 0 8px;
-  font-size: 1rem;
+  font-size: 0.7rem;
   color: var(--muted);
 }
 
 .no-data {
   text-align: center;
   color: var(--muted);
-  font-style: italic;
+  font-style: normal;
   padding: 20px;
+  font-size: 0.6rem;
 }
 
 .favorites-actions {
@@ -427,54 +435,52 @@ textarea {
 .yue-dict-result {
   margin-top: 12px;
   padding: 12px;
-  background: #fff;
-  border: 1px solid #d7deeb;
-  border-radius: 10px;
+  background: #1a1a24;
+  border: var(--pixel-size) solid var(--border);
 }
 
 .yue-dict-item {
   padding: 10px;
   margin-bottom: 8px;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  background: var(--card);
+  border: 2px solid var(--border);
+  font-size: 0.6rem;
 }
 
 .yue-dict-item h4 {
   margin: 0 0 4px;
   color: var(--accent);
+  font-size: 0.7rem;
 }
 
 .yue-dict-item p {
   margin: 2px 0;
-  font-size: 0.9rem;
+  font-size: 0.55rem;
 }
 
 .yue-dict-item .pinyin {
   color: var(--accent-2);
-  font-weight: 600;
 }
 
 .yue-dict-item .example {
   color: var(--muted);
-  font-style: italic;
 }
 
 .yue-dict-item .explanation {
   margin-top: 4px;
   padding-top: 4px;
-  border-top: 1px dashed #d7deeb;
+  border-top: 2px dashed var(--border);
 }
 
 .yue-dict-item .play-btn {
   margin-top: 8px;
   padding: 6px 12px;
   background: var(--accent);
-  color: #fff;
+  color: var(--bg);
   border: none;
-  border-radius: 6px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.55rem;
+  font-family: inherit;
 }
 
 .yue-dict-item .play-btn:hover {
@@ -485,30 +491,30 @@ textarea {
 .daily-quote-section {
   margin-top: 32px;
   padding: 24px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  color: #fff;
+  background: var(--card);
+  border: var(--pixel-size) solid var(--accent);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 .daily-quote-section h2 {
   margin: 0 0 16px 0;
-  font-size: 1.3rem;
-  color: #fff;
+  font-size: 0.9rem;
+  color: var(--accent);
 }
 
 /* 学习进度 */
 .progress-section {
   margin-top: 32px;
   padding: 24px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: var(--card);
+  border: var(--pixel-size) solid var(--border);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 .progress-section h2 {
   margin: 0 0 20px 0;
-  font-size: 1.3rem;
-  color: var(--text);
+  font-size: 0.9rem;
+  color: var(--accent);
 }
 
 .progress-stats {
@@ -521,8 +527,8 @@ textarea {
 .stat-card {
   text-align: center;
   padding: 16px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 8px;
+  background: var(--bg);
+  border: 2px solid var(--border);
 }
 
 .stat-icon {
@@ -531,14 +537,13 @@ textarea {
 }
 
 .stat-value {
-  font-size: 1.8rem;
-  font-weight: 700;
+  font-size: 1.2rem;
   color: var(--accent);
   margin-bottom: 4px;
 }
 
 .stat-label {
-  font-size: 0.85rem;
+  font-size: 0.5rem;
   color: var(--muted);
 }
 
@@ -550,22 +555,21 @@ textarea {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
-  font-size: 0.9rem;
+  font-size: 0.6rem;
   color: var(--text);
 }
 
 .progress-bar {
-  height: 12px;
-  background: #e9ecef;
-  border-radius: 6px;
+  height: 16px;
+  background: var(--bg);
+  border: 2px solid var(--border);
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  border-radius: 6px;
-  transition: width 0.3s ease;
+  background: var(--accent);
+  transition: width 0.3s steps(10);
 }
 
 .daily-quote {
@@ -580,45 +584,44 @@ textarea {
 }
 
 .quote-yue {
-  font-size: 1.4rem;
-  font-weight: 700;
+  font-size: 1rem;
   margin: 0 0 8px 0;
+  color: var(--accent);
 }
 
 .quote-zh {
-  font-size: 1rem;
+  font-size: 0.6rem;
   margin: 0 0 4px 0;
-  opacity: 0.9;
+  color: var(--muted);
 }
 
 .quote-pinyin {
-  font-size: 0.9rem;
+  font-size: 0.55rem;
   margin: 0;
-  opacity: 0.8;
-  font-style: italic;
+  color: var(--accent-2);
 }
 
 .daily-quote-large {
   padding: 32px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: var(--card);
+  border: var(--pixel-size) solid var(--border);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
   margin-bottom: 24px;
 }
 
 .daily-quote-large .quote-yue {
-  font-size: 2rem;
+  font-size: 1.2rem;
   color: var(--accent);
 }
 
 .daily-quote-large .quote-zh {
-  font-size: 1.2rem;
+  font-size: 0.7rem;
   color: var(--text);
 }
 
 .daily-quote-large .quote-pinyin {
-  font-size: 1rem;
-  color: var(--muted);
+  font-size: 0.6rem;
+  color: var(--accent-2);
 }
 
 .quote-actions {
@@ -632,31 +635,33 @@ textarea {
 }
 
 .daily-history h3 {
-  font-size: 1.1rem;
+  font-size: 0.7rem;
   margin-bottom: 12px;
+  color: var(--accent);
 }
 
 .daily-history-item {
   padding: 12px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: var(--bg);
+  border: 2px solid var(--border);
   margin-bottom: 8px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.1s;
+  font-size: 0.6rem;
 }
 
 .daily-history-item:hover {
-  background: #e9ecef;
+  background: var(--card);
+  border-color: var(--accent);
 }
 
 .daily-history-item .yue {
-  font-weight: 600;
   color: var(--accent);
 }
 
 .daily-history-item .zh {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.55rem;
 }
 
 /* 常用短语 */
@@ -670,21 +675,22 @@ textarea {
 .phrase-cat-btn {
   padding: 8px 16px;
   border: 2px solid var(--border);
-  background: #fff;
-  border-radius: 20px;
+  background: var(--bg);
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
+  font-size: 0.55rem;
+  transition: all 0.1s;
+  font-family: inherit;
+  color: var(--text);
 }
 
 .phrase-cat-btn:hover {
   border-color: var(--accent);
-  background: #f0f7ff;
+  background: var(--card);
 }
 
 .phrase-cat-btn.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--bg);
   border-color: var(--accent);
 }
 
@@ -695,9 +701,8 @@ textarea {
 
 .phrase-item {
   padding: 16px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  background: var(--bg);
+  border: 2px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -709,21 +714,19 @@ textarea {
 }
 
 .phrase-item .yue {
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 0.8rem;
   color: var(--accent);
   margin-bottom: 4px;
 }
 
 .phrase-item .zh {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.55rem;
 }
 
 .phrase-item .pinyin {
   color: var(--accent-2);
-  font-size: 0.85rem;
-  font-style: italic;
+  font-size: 0.5rem;
 }
 
 .phrase-item .phrase-actions {
@@ -752,22 +755,24 @@ textarea {
 
 .quiz-options select {
   padding: 8px 16px;
-  border-radius: 8px;
   border: 2px solid var(--border);
-  font-size: 1rem;
+  font-size: 0.6rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
 }
 
 .quiz-score {
   margin-top: 24px;
-  font-size: 1.2rem;
+  font-size: 0.8rem;
   color: var(--accent);
 }
 
 .quiz-question {
   padding: 24px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: var(--bg);
+  border: var(--pixel-size) solid var(--border);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 .question-header {
@@ -775,7 +780,7 @@ textarea {
   justify-content: space-between;
   margin-bottom: 16px;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.55rem;
 }
 
 .question-options {
@@ -786,30 +791,31 @@ textarea {
 
 .question-option {
   padding: 16px;
-  background: #f8f9fa;
+  background: var(--card);
   border: 2px solid var(--border);
-  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.1s;
   text-align: center;
-  font-size: 1rem;
+  font-size: 0.6rem;
+  font-family: inherit;
+  color: var(--text);
 }
 
 .question-option:hover {
   border-color: var(--accent);
-  background: #f0f7ff;
+  background: var(--bg);
 }
 
 .question-option.correct {
-  background: #d4edda;
-  border-color: #28a745;
-  color: #155724;
+  background: #1a3a1a;
+  border-color: #00ff00;
+  color: #00ff00;
 }
 
 .question-option.incorrect {
-  background: #f8d7da;
-  border-color: #dc3545;
-  color: #721c24;
+  background: #3a1a1a;
+  border-color: #ff0000;
+  color: #ff0000;
 }
 
 .question-option.disabled {
@@ -819,32 +825,34 @@ textarea {
 
 .question-feedback {
   padding: 12px;
-  border-radius: 8px;
   margin: 16px 0;
-  font-weight: 500;
+  font-size: 0.6rem;
 }
 
 .question-feedback.correct {
-  background: #d4edda;
-  color: #155724;
+  background: #1a3a1a;
+  color: #00ff00;
+  border: 2px solid #00ff00;
 }
 
 .question-feedback.incorrect {
-  background: #f8d7da;
-  color: #721c24;
+  background: #3a1a1a;
+  color: #ff0000;
+  border: 2px solid #ff0000;
 }
 
 /* 声调练习 */
 .tone-intro {
   padding: 16px;
-  background: #f0f7ff;
-  border-radius: 8px;
+  background: var(--bg);
+  border: 2px solid var(--border);
   margin-bottom: 24px;
 }
 
 .tone-intro p {
   margin: 0;
   color: var(--text);
+  font-size: 0.6rem;
 }
 
 .tone-grid {
@@ -856,34 +864,32 @@ textarea {
 
 .tone-card {
   padding: 20px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--bg);
+  border: var(--pixel-size) solid var(--border);
   text-align: center;
-  transition: transform 0.2s;
+  transition: all 0.1s;
 }
 
 .tone-card:hover {
-  transform: translateY(-4px);
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+  border-color: var(--accent);
 }
 
 .tone-number {
   width: 40px;
   height: 40px;
   margin: 0 auto 12px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 1.2rem;
 }
 
 .tone-name {
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 0.6rem;
   margin-bottom: 12px;
   color: var(--text);
 }
@@ -893,27 +899,24 @@ textarea {
 }
 
 .tone-example .yue {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 1.5rem;
   color: var(--accent);
   margin-bottom: 4px;
 }
 
 .tone-example .pinyin {
-  font-size: 1rem;
+  font-size: 0.6rem;
   color: var(--accent-2);
-  font-style: italic;
 }
 
 .tone-play-btn {
   padding: 8px 16px;
   background: var(--accent);
-  color: #fff;
+  color: var(--bg);
   border: none;
-  border-radius: 6px;
   cursor: pointer;
-  font-size: 1rem;
-  transition: background 0.2s;
+  font-size: 0.6rem;
+  font-family: inherit;
 }
 
 .tone-play-btn:hover {
@@ -926,7 +929,8 @@ textarea {
 
 .tone-practice-section h3 {
   margin-bottom: 16px;
-  font-size: 1.2rem;
+  font-size: 0.8rem;
+  color: var(--accent);
 }
 
 .tone-practice-game {
@@ -937,16 +941,16 @@ textarea {
 .tone-practice-game .game-start {
   text-align: center;
   padding: 40px 20px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: var(--bg);
+  border: var(--pixel-size) solid var(--border);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 .tone-question {
   padding: 24px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: var(--bg);
+  border: var(--pixel-size) solid var(--border);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
 }
 
 .tone-question-header {
@@ -954,24 +958,24 @@ textarea {
   justify-content: space-between;
   margin-bottom: 16px;
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.55rem;
 }
 
 .play-tone-btn {
   width: 100%;
   padding: 20px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  background: var(--accent);
+  color: var(--bg);
   border: none;
-  border-radius: 8px;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 0.8rem;
   margin-bottom: 24px;
-  transition: transform 0.2s;
+  transition: all 0.1s;
+  font-family: inherit;
 }
 
 .play-tone-btn:hover {
-  transform: scale(1.02);
+  background: var(--accent-2);
 }
 
 .tone-options {
@@ -983,30 +987,31 @@ textarea {
 
 .tone-option {
   padding: 16px;
-  background: #f8f9fa;
+  background: var(--card);
   border: 2px solid var(--border);
-  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.1s;
   text-align: center;
-  font-size: 1rem;
+  font-size: 0.6rem;
+  font-family: inherit;
+  color: var(--text);
 }
 
 .tone-option:hover {
   border-color: var(--accent);
-  background: #f0f7ff;
+  background: var(--bg);
 }
 
 .tone-option.correct {
-  background: #d4edda;
-  border-color: #28a745;
-  color: #155724;
+  background: #1a3a1a;
+  border-color: #00ff00;
+  color: #00ff00;
 }
 
 .tone-option.incorrect {
-  background: #f8d7da;
-  border-color: #dc3545;
-  color: #721c24;
+  background: #3a1a1a;
+  border-color: #ff0000;
+  color: #ff0000;
 }
 
 .tone-option.disabled {
@@ -1016,19 +1021,39 @@ textarea {
 
 .tone-feedback {
   padding: 12px;
-  border-radius: 8px;
   margin: 16px 0;
-  font-weight: 500;
+  font-size: 0.6rem;
 }
 
 .tone-feedback.correct {
-  background: #d4edda;
-  color: #155724;
+  background: #1a3a1a;
+  color: #00ff00;
+  border: 2px solid #00ff00;
 }
 
 .tone-feedback.incorrect {
-  background: #f8d7da;
-  color: #721c24;
+  background: #3a1a1a;
+  color: #ff0000;
+  border: 2px solid #ff0000;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+  border: 2px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border: 2px solid var(--bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-2);
 }
 
 /* 响应式设计 */
@@ -1038,12 +1063,12 @@ textarea {
   }
   
   .nav-brand h1 {
-    font-size: 1.2rem;
+    font-size: 0.7rem;
   }
   
   .nav-btn {
     padding: 10px 12px;
-    font-size: 0.85rem;
+    font-size: 0.5rem;
   }
   
   .features-grid {
