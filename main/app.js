@@ -123,6 +123,13 @@ let yueDictionaryLoaded = false;
 let yueDictionaryLoadPromise = null;
 const yueAudioAvailabilityCache = new Map();
 const yueAudioResolveCache = new Map();
+const yueWordPinyinMap = new Map();
+let yueMaxWordLength = 1;
+let webAudioContext = null;
+let webAudioPlaybackToken = 0;
+const activeWebAudioSources = new Set();
+const webAudioBufferCache = new Map();
+const TTS_YUE_BASE_PATH = "tts/wordsyn/jyutping-wong-44100-v9/jyutping-wong";
 
 function getConfig() {
   const raw = localStorage.getItem(configKey);
@@ -361,38 +368,88 @@ function loadYueDictionary() {
   if (yueDictionaryLoaded) return Promise.resolve();
   if (yueDictionaryLoadPromise) return yueDictionaryLoadPromise;
 
-  yueDictionaryLoadPromise = fetch("read/yyzd.csv")
-    .then((response) => response.text())
-    .then((csvText) => {
-      const lines = csvText.split(/\r?\n/);
-      yueDictionary = [];
+  yueDictionaryLoadPromise = Promise.all([
+    fetch("read/yyzd.csv").then((response) => response.text()),
+    fetch("read/word_list.csv").then((response) => response.text()),
+  ])
+    .then(([yyzdText, wordListText]) => {
+      const yyzdLines = yyzdText.split(/\r?\n/);
+      const wordListLines = wordListText.split(/\r?\n/);
+      const dedupe = new Set();
 
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
+      yueDictionary = [];
+      yueWordPinyinMap.clear();
+      yueMaxWordLength = 1;
+
+      const addEntry = (entry) => {
+        const simp = (entry.simp || "").trim();
+        const trad = (entry.trad || "").trim();
+        const pinyin = (entry.pinyin || "").trim();
+        const example = (entry.example || "").trim();
+        const explanation = (entry.explanation || "").trim();
+        const alt = (entry.alt || "").trim();
+
+        if (!simp || !pinyin) return;
+
+        const dedupeKey = `${simp}|${trad || simp}|${pinyin}|${example}|${explanation}|${alt}`;
+        if (dedupe.has(dedupeKey)) return;
+        dedupe.add(dedupeKey);
+
+        yueDictionary.push({
+          simp,
+          trad: trad || simp,
+          pinyin,
+          example,
+          explanation,
+          alt,
+        });
+
+        for (const word of [simp, trad || simp]) {
+          const normalized = (word || "").trim();
+          if (!normalized) continue;
+          if (!yueWordPinyinMap.has(normalized)) {
+            yueWordPinyinMap.set(normalized, pinyin);
+            yueMaxWordLength = Math.max(yueMaxWordLength, normalized.length);
+          }
+        }
+      };
+
+      // yyzd.csv: 简体,繁体,拼音,词语示例,解释,其他对应字
+      for (let i = 1; i < yyzdLines.length; i++) {
+        const line = yyzdLines[i].trim();
         if (!line) continue;
 
         const parts = parseCsvLine(line);
-        if (parts.length >= 3) {
-          const simp = parts[0] || "";
-          const trad = parts[1] || "";
-          const pinyin = parts[2] || "";
-          const example = parts[3] || "";
-          const explanation = parts[4] || "";
-          const alt = parts[5] || "";
+        if (parts.length < 3) continue;
+        addEntry({
+          simp: parts[0],
+          trad: parts[1],
+          pinyin: parts[2],
+          example: parts[3] || "",
+          explanation: parts[4] || "",
+          alt: parts[5] || "",
+        });
+      }
 
-          yueDictionary.push({
-            simp,
-            trad,
-            pinyin,
-            example,
-            explanation,
-            alt,
-          });
-        }
+      // word_list.csv: 词语, 粤拼（两列）
+      for (const rawLine of wordListLines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+
+        const parts = parseCsvLine(line);
+        if (parts.length < 2) continue;
+        addEntry({
+          simp: parts[0],
+          trad: parts[0],
+          pinyin: parts[1],
+          example: "",
+          explanation: "",
+          alt: "",
+        });
       }
 
       yueDictionaryLoaded = true;
-      console.log(`粤语词典加载完成，共 ${yueDictionary.length} 条记录`);
+      console.log(`粤语词典加载完成，共 ${yueDictionary.length} 条记录（yyzd + word_list）`);
     })
     .catch((err) => {
       yueDictionaryLoadPromise = null;
@@ -553,7 +610,7 @@ function getYuePinyinCandidates(pinyin) {
 function getYuePinyinUrl(pinyin) {
   const candidates = getYuePinyinCandidates(pinyin);
   if (candidates.length === 0) return null;
-  return `read/jyutping_female/${candidates[0]}.mp3`;
+  return `${TTS_YUE_BASE_PATH}/${candidates[0]}.wav`;
 }
 
 async function checkAudioPathExists(path) {
@@ -580,7 +637,7 @@ async function resolveYueAudioPath(pinyin) {
 
   const candidates = getYuePinyinCandidates(pinyin);
   for (const candidate of candidates) {
-    const path = `read/jyutping_female/${candidate}.mp3`;
+    const path = `${TTS_YUE_BASE_PATH}/${candidate}.wav`;
     const exists = await checkAudioPathExists(path);
     if (exists) {
       yueAudioResolveCache.set(pinyinMain, path);
@@ -595,6 +652,211 @@ async function resolveYueAudioPath(pinyin) {
 async function checkYueAudioExists(pinyin) {
   const audioPath = await resolveYueAudioPath(pinyin);
   return Boolean(audioPath);
+}
+
+function getWebAudioContext() {
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor) return null;
+  if (!webAudioContext) {
+    webAudioContext = new AudioContextCtor();
+  }
+  return webAudioContext;
+}
+
+async function ensureWebAudioReady() {
+  const context = getWebAudioContext();
+  if (!context) return null;
+  if (context.state === "suspended") {
+    try {
+      await context.resume();
+    } catch (err) {
+      console.warn("恢复 Web Audio 上下文失败:", err);
+    }
+  }
+  return context;
+}
+
+function stopAllWebAudioPlayback() {
+  webAudioPlaybackToken += 1;
+  activeWebAudioSources.forEach((source) => {
+    try {
+      source.stop();
+    } catch {
+      // 忽略重复停止异常
+    }
+    try {
+      source.disconnect();
+    } catch {
+      // 忽略断开异常
+    }
+  });
+  activeWebAudioSources.clear();
+}
+
+function trackWebAudioSource(source) {
+  activeWebAudioSources.add(source);
+  source.onended = () => {
+    activeWebAudioSources.delete(source);
+    try {
+      source.disconnect();
+    } catch {
+      // 忽略断开异常
+    }
+  };
+}
+
+async function loadWebAudioBuffer(path, context) {
+  if (webAudioBufferCache.has(path)) {
+    return webAudioBufferCache.get(path);
+  }
+
+  const response = await fetch(path);
+  if (!response.ok) {
+    throw new Error(`音频加载失败: ${path}`);
+  }
+
+  const rawBuffer = await response.arrayBuffer();
+  const decodedBuffer = await context.decodeAudioData(rawBuffer.slice(0));
+  webAudioBufferCache.set(path, decodedBuffer);
+  return decodedBuffer;
+}
+
+async function playAudioPathsWithWebAudio(paths, options = {}) {
+  const { interrupt = false, gapSeconds = 0.04 } = options;
+  if (!Array.isArray(paths) || paths.length === 0) return false;
+
+  const context = await ensureWebAudioReady();
+  if (!context) return false;
+
+  if (interrupt) {
+    stopAllWebAudioPlayback();
+  }
+  const playbackToken = webAudioPlaybackToken;
+
+  const buffers = [];
+  for (const path of paths) {
+    if (playbackToken !== webAudioPlaybackToken) return false;
+    try {
+      const buffer = await loadWebAudioBuffer(path, context);
+      buffers.push(buffer);
+    } catch (err) {
+      console.warn(`Web Audio 解码失败: ${path}`, err);
+    }
+  }
+
+  if (buffers.length === 0 || playbackToken !== webAudioPlaybackToken) {
+    return false;
+  }
+
+  let startAt = context.currentTime + 0.02;
+  buffers.forEach((buffer, index) => {
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.connect(context.destination);
+    trackWebAudioSource(source);
+    source.start(startAt);
+    startAt += buffer.duration + (index < buffers.length - 1 ? gapSeconds : 0);
+  });
+
+  return true;
+}
+
+function tokenizePinyin(pinyinText) {
+  if (!pinyinText) return [];
+  return pinyinText
+    .toLowerCase()
+    .split(/\s+/)
+    .flatMap((part) => part.split("/"))
+    .map((part) => part.trim().replace(/[^a-z0-9]/g, ""))
+    .filter(Boolean)
+    .map((part) => getPrimaryPinyin(part))
+    .filter(Boolean);
+}
+
+async function resolveYueAudioPathsFromPinyin(pinyinText) {
+  const tokens = tokenizePinyin(pinyinText);
+  if (tokens.length === 0) return [];
+
+  const audioPaths = [];
+  for (const token of tokens) {
+    const path = await resolveYueAudioPath(token);
+    if (path) {
+      audioPaths.push(path);
+    }
+  }
+  return audioPaths;
+}
+
+async function playAudioPathsWithHtmlAudio(paths, options = {}) {
+  const { gapMs = 40 } = options;
+  if (!Array.isArray(paths) || paths.length === 0) return false;
+
+  for (let i = 0; i < paths.length; i++) {
+    const currentPath = paths[i];
+    const audio = new Audio(currentPath);
+
+    try {
+      await new Promise((resolve, reject) => {
+        audio.onended = resolve;
+        audio.onerror = () => reject(new Error(`HTMLAudio 播放失败: ${currentPath}`));
+        const playPromise = audio.play();
+        if (playPromise && typeof playPromise.catch === "function") {
+          playPromise.catch(reject);
+        }
+      });
+    } catch (err) {
+      console.warn("HTMLAudio 回退播放失败:", err);
+      return false;
+    }
+
+    if (i < paths.length - 1 && gapMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, gapMs));
+    }
+  }
+
+  return true;
+}
+
+function isSpeechDelimiter(ch) {
+  return /[\s，。！？；：、“”‘’（）()【】《》,.!?;:'"、\u3000]/.test(ch);
+}
+
+function extractPinyinTokensFromText(text) {
+  const normalizedText = (text || "").trim();
+  if (!normalizedText) return [];
+
+  const tokens = [];
+  let i = 0;
+
+  while (i < normalizedText.length) {
+    const ch = normalizedText[i];
+    if (isSpeechDelimiter(ch)) {
+      i += 1;
+      continue;
+    }
+
+    let matched = false;
+    const maxLen = Math.min(yueMaxWordLength, normalizedText.length - i);
+    for (let len = maxLen; len > 0; len--) {
+      const segment = normalizedText.slice(i, i + len);
+      const pinyin = yueWordPinyinMap.get(segment);
+      if (!pinyin) continue;
+
+      const segmentTokens = tokenizePinyin(pinyin);
+      if (segmentTokens.length === 0) continue;
+
+      tokens.push(...segmentTokens);
+      i += len;
+      matched = true;
+      break;
+    }
+
+    if (!matched) {
+      i += 1;
+    }
+  }
+
+  return tokens;
 }
 
 function loadFavorites() {
@@ -712,16 +974,40 @@ function addToTranslateHistory(input, output, direction) {
   renderTranslateHistory();
 }
 
-function speakText(text) {
+async function speakText(text) {
   if (!text) return;
-  
-  if ("speechSynthesis" in window) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "zh-CN";
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
-  } else {
-    alert("您的浏览器不支持语音朗读功能");
+
+  const normalizedText = text.trim();
+  if (!normalizedText) return;
+
+  try {
+    await loadYueDictionary();
+    const pinyinTokens = extractPinyinTokensFromText(normalizedText);
+    const audioPaths = [];
+
+    for (const pinyin of pinyinTokens) {
+      const path = await resolveYueAudioPath(pinyin);
+      if (path) {
+        audioPaths.push(path);
+      }
+    }
+
+    if (audioPaths.length === 0) {
+      alert("未找到对应的 TTS 朗读文件");
+      return;
+    }
+
+    const played = await playAudioPathsWithWebAudio(audioPaths, {
+      interrupt: true,
+      gapSeconds: 0.03,
+    });
+    if (played) return;
+
+    alert("TTS 朗读播放失败，请稍后重试");
+    return;
+  } catch (err) {
+    console.warn("TTS 朗读失败:", err);
+    alert("TTS 朗读失败，请稍后重试");
   }
 }
 
@@ -765,25 +1051,33 @@ function fallbackCopyText(text) {
 }
 
 async function playYuePinyin(pinyin, resolvedPath = "") {
-  if (!pinyin) return;
+  if (!pinyin && !resolvedPath) return;
 
-  const mp3Path = resolvedPath || (await resolveYueAudioPath(pinyin));
-  if (!mp3Path) {
+  const audioPaths = resolvedPath ? [resolvedPath] : (await resolveYueAudioPathsFromPinyin(pinyin));
+  if (audioPaths.length === 0) {
     console.warn(`发音路径无效: ${pinyin}`);
     alert("发音文件不存在或无法播放");
     return;
   }
   
-  console.log(`尝试播放发音: ${mp3Path}`);
-  
-  const audio = new Audio(mp3Path);
-  
-  audio.play().then(() => {
-    console.log(`成功播放发音: ${mp3Path}`);
-  }).catch(err => {
-    console.error("播放发音失败:", err);
-    alert("发音文件不存在或无法播放");
+  console.log(`尝试播放发音: ${audioPaths.join(", ")}`);
+
+  const played = await playAudioPathsWithWebAudio(audioPaths, {
+    interrupt: false,
+    gapSeconds: 0.03,
   });
+  if (played) {
+    console.log(`成功播放发音: ${audioPaths.join(", ")}`);
+    return;
+  }
+
+  const fallbackPlayed = await playAudioPathsWithHtmlAudio(audioPaths, { gapMs: 40 });
+  if (fallbackPlayed) {
+    console.log(`成功播放发音(HTMLAudio回退): ${audioPaths.join(", ")}`);
+    return;
+  }
+
+  alert("发音文件不存在或无法播放");
 }
 
 function renderYueDictResult(results) {
@@ -810,10 +1104,10 @@ function renderYueDictResult(results) {
     yueDictResultEl.appendChild(el);
 
     const audioActionEl = el.querySelector(".audio-action");
-    resolveYueAudioPath(item.pinyin).then((audioPath) => {
+    resolveYueAudioPathsFromPinyin(item.pinyin).then((audioPaths) => {
       if (!audioActionEl) return;
       audioActionEl.innerHTML = "";
-      if (!audioPath) {
+      if (audioPaths.length === 0) {
         audioActionEl.innerHTML = `<span style="color:var(--muted);font-size:0.85em">（无发音文件）</span>`;
         return;
       }
@@ -821,7 +1115,7 @@ function renderYueDictResult(results) {
       playBtn.className = "play-btn";
       playBtn.textContent = "🔊 播放发音";
       playBtn.addEventListener("click", () => {
-        playYuePinyin(item.pinyin, audioPath);
+        playYuePinyin(item.pinyin, audioPaths.length === 1 ? audioPaths[0] : "");
       });
       audioActionEl.appendChild(playBtn);
     });
@@ -894,7 +1188,7 @@ function extractYueDictContext(text) {
   const matchedEntries = [];
   
   for (const char of singleChars) {
-    const found = yueDictionary.filter(entry => entry.character === char);
+    const found = yueDictionary.filter((entry) => entry.simp === char || entry.trad === char);
     if (found.length > 0) {
       matchedEntries.push(...found.slice(0, 2));
     }
@@ -906,7 +1200,7 @@ function extractYueDictContext(text) {
   return uniqueEntries.map(entry => {
     const example = entry.example ? `（示例：${entry.example}）` : "";
     const explanation = entry.explanation ? ` - ${entry.explanation}` : "";
-    return `${entry.character} (${entry.pinyin})${example}${explanation}`;
+    return `${entry.simp} (${entry.pinyin})${example}${explanation}`;
   }).join("\n");
 }
 

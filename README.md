@@ -33,22 +33,23 @@ dls-AI/
 
 ## 🚀 快速开始
 
-### 方式一：直接打开（推荐）
+### 方式一：使用项目后端（推荐）
+
+```bash
+cd dls-AI
+npm install
+npm start
+```
+
+然后访问 `http://localhost:8080`。
+
+### 方式二：直接打开（纯静态）
 
 ```bash
 cd main
 open index.html  # macOS
 # 或直接双击打开 index.html
 ```
-
-### 方式二：使用本地服务器
-
-```bash
-cd main
-python3 -m http.server 8080
-```
-
-然后访问 `http://localhost:8080`
 
 ## ⚙️ 配置说明
 

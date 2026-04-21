@@ -4,8 +4,8 @@
   "description": "多邻省 AI 学习助手 - 方言学习与翻译助手",
   "main": "app.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node ../server.js",
+    "dev": "node ../server.js"
   },
   "keywords": [
     "ai",

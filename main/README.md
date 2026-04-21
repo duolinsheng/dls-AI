@@ -10,12 +10,20 @@
 ### 使用 npm（推荐）
 
 ```bash
-cd main
+# 在仓库根目录 dls-AI
+cd dls-AI
 npm install
 npm start
 ```
 
 然后访问 `http://localhost:8080`。
+
+兼容旧方式（仍可用）：
+
+```bash
+cd main
+npm start
+```
 
 ### 其他方式
 
