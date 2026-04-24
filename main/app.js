@@ -124,12 +124,62 @@ let yueDictionaryLoadPromise = null;
 const yueAudioAvailabilityCache = new Map();
 const yueAudioResolveCache = new Map();
 const yueWordPinyinMap = new Map();
+const yueScriptCanonicalMap = new Map();
+const yueSearchNormalizeCache = new Map();
 let yueMaxWordLength = 1;
 let webAudioContext = null;
 let webAudioPlaybackToken = 0;
 const activeWebAudioSources = new Set();
 const webAudioBufferCache = new Map();
 const TTS_YUE_BASE_PATH = "tts/wordsyn/jyutping-wong-44100-v9/jyutping-wong";
+const yuePinyinAliasMap = Object.freeze({
+  // 词典中存在少量非标准拼写，这里统一到 TTS 音库可识别的拼写。
+  a1: "aa1",
+  bi1: "be1",
+  bi4: "be4",
+  zeu1: "zau1",
+  zeu6: "zau6",
+  gwak6: "gwat6",
+  ik1: "jik1",
+  ik6: "jik6",
+  leu1: "leoi1",
+  leu5: "leoi5",
+  keu4: "keoi4",
+  meu1: "miu1",
+  nget4: "ngit4",
+  ngek6: "ngak6",
+  keng4: "king4",
+  dep6: "dip6",
+  det6: "deot6",
+  det4: "deot4",
+  kwang3: "kwaang3",
+  lu4: "lou4",
+  lu3: "lou3",
+  gwek4: "gwik4",
+  jen1: "jin1",
+  ket4: "kat4",
+  coet1: "ceot1",
+  coet2: "ceot2",
+  coet6: "ceot6",
+  cet1: "ceot1",
+  cet6: "ceot6",
+  met6: "mat6",
+  bet6: "bat6",
+  bet4: "bat4",
+  tet6: "tat6",
+  zet4: "zeot4",
+  mon1: "mong1",
+  mu1: "mou1",
+  kem4: "kim4",
+  kem2: "kim2",
+  zep4: "zip4",
+  zep2: "zip2",
+  fi3: "fai3",
+  geot3: "goek3",
+});
+const yueScriptFallbackPairs = Object.freeze({
+  马: "馬",
+});
 
 function getConfig() {
   const raw = localStorage.getItem(configKey);
@@ -364,6 +414,81 @@ function parseCsvLine(line) {
   return fields;
 }
 
+function rebuildYueScriptCanonicalMap() {
+  yueScriptCanonicalMap.clear();
+  yueSearchNormalizeCache.clear();
+
+  const parent = new Map();
+  const find = (ch) => {
+    if (!parent.has(ch)) {
+      parent.set(ch, ch);
+      return ch;
+    }
+    const p = parent.get(ch);
+    if (p === ch) return ch;
+    const root = find(p);
+    parent.set(ch, root);
+    return root;
+  };
+  const union = (a, b) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra === rb) return;
+    const root = ra < rb ? ra : rb;
+    const child = root === ra ? rb : ra;
+    parent.set(child, root);
+  };
+
+  for (const item of yueDictionary) {
+    const simp = (item.simp || "").trim();
+    const trad = (item.trad || "").trim();
+    if (!simp || !trad || simp.length !== trad.length) continue;
+
+    for (let i = 0; i < simp.length; i++) {
+      const s = simp[i];
+      const t = trad[i];
+      if (s && t && s !== t) {
+        union(s, t);
+      }
+    }
+  }
+
+  for (const [simp, trad] of Object.entries(yueScriptFallbackPairs)) {
+    if (simp && trad && simp !== trad) {
+      union(simp, trad);
+    }
+  }
+
+  const groups = new Map();
+  for (const ch of parent.keys()) {
+    const root = find(ch);
+    if (!groups.has(root)) {
+      groups.set(root, new Set());
+    }
+    groups.get(root).add(ch);
+  }
+
+  for (const charSet of groups.values()) {
+    const chars = Array.from(charSet).sort();
+    const canonical = chars[0];
+    for (const ch of chars) {
+      yueScriptCanonicalMap.set(ch, canonical);
+    }
+  }
+}
+
+function normalizeYueSearchText(text) {
+  const raw = (text || "").trim();
+  if (!raw) return "";
+  if (yueSearchNormalizeCache.has(raw)) {
+    return yueSearchNormalizeCache.get(raw);
+  }
+
+  const normalized = Array.from(raw, (ch) => yueScriptCanonicalMap.get(ch) || ch).join("");
+  yueSearchNormalizeCache.set(raw, normalized);
+  return normalized;
+}
+
 function loadYueDictionary() {
   if (yueDictionaryLoaded) return Promise.resolve();
   if (yueDictionaryLoadPromise) return yueDictionaryLoadPromise;
@@ -379,6 +504,7 @@ function loadYueDictionary() {
 
       yueDictionary = [];
       yueWordPinyinMap.clear();
+      yueSearchNormalizeCache.clear();
       yueMaxWordLength = 1;
 
       const addEntry = (entry) => {
@@ -448,6 +574,7 @@ function loadYueDictionary() {
         });
       }
 
+      rebuildYueScriptCanonicalMap();
       yueDictionaryLoaded = true;
       console.log(`粤语词典加载完成，共 ${yueDictionary.length} 条记录（yyzd + word_list）`);
     })
@@ -466,11 +593,97 @@ function findYueWords(word) {
   return yueDictionary.filter((item) => item.simp === word || item.trad === word);
 }
 
+function searchYueDictionaryEntries(query, options = {}) {
+  if (!yueDictionaryLoaded) return [];
+
+  const normalizedQuery = (query || "").trim();
+  if (!normalizedQuery) return [];
+  const normalizedScriptQuery = normalizeYueSearchText(normalizedQuery);
+
+  const { limit = 200 } = options;
+  const resultMap = new Map();
+
+  const makeKey = (item) =>
+    `${item.simp}|${item.trad}|${item.pinyin}|${item.example}|${item.explanation}|${item.alt}`;
+  const addResult = (item) => {
+    const key = makeKey(item);
+    if (!resultMap.has(key)) {
+      resultMap.set(key, item);
+    }
+  };
+
+  const isExactMatch = (item, text, normalizedText) =>
+    item.simp === text ||
+    item.trad === text ||
+    normalizeYueSearchText(item.simp) === normalizedText ||
+    normalizeYueSearchText(item.trad) === normalizedText;
+  const isContainsMatch = (item, text, normalizedText) =>
+    item.simp.includes(text) ||
+    item.trad.includes(text) ||
+    normalizeYueSearchText(item.simp).includes(normalizedText) ||
+    normalizeYueSearchText(item.trad).includes(normalizedText);
+
+  // 1) 先放最相关的：整词精确命中。
+  for (const item of yueDictionary) {
+    if (isExactMatch(item, normalizedQuery, normalizedScriptQuery)) {
+      addResult(item);
+    }
+  }
+
+  // 2) 再放：包含整词查询的词条（例如查询“馬”时返回带“馬”的词）。
+  for (const item of yueDictionary) {
+    if (isContainsMatch(item, normalizedQuery, normalizedScriptQuery)) {
+      addResult(item);
+    }
+  }
+
+  // 3) 多字查询时（例如“馬克思”），额外补充每个字的结果。
+  const singleChars = [...new Set(normalizedQuery.match(/[\u4e00-\u9fff]/g) || [])];
+  if (singleChars.length > 1) {
+    const charsWithExactEntry = new Set();
+
+    for (const ch of singleChars) {
+      const normalizedScriptCh = normalizeYueSearchText(ch);
+      for (const item of yueDictionary) {
+        if (isExactMatch(item, ch, normalizedScriptCh)) {
+          addResult(item);
+          charsWithExactEntry.add(ch);
+        }
+      }
+    }
+
+    // 若某个单字没有独立词条，也展示该字占位，保证“馬克思”这类查询能看到拆字结果。
+    for (const ch of singleChars) {
+      if (!charsWithExactEntry.has(ch)) {
+        addResult({
+          simp: ch,
+          trad: ch,
+          pinyin: "",
+          example: "",
+          explanation: "该字暂无独立词条，以下为包含该字的词语",
+          alt: "",
+        });
+      }
+    }
+
+    for (const ch of singleChars) {
+      const normalizedScriptCh = normalizeYueSearchText(ch);
+      for (const item of yueDictionary) {
+        if (isContainsMatch(item, ch, normalizedScriptCh)) {
+          addResult(item);
+        }
+      }
+    }
+  }
+
+  return Array.from(resultMap.values()).slice(0, Math.max(1, limit));
+}
+
 function getPrimaryPinyin(pinyin) {
   if (!pinyin || !pinyin.trim()) return "";
   const cleaned = pinyin.toLowerCase().trim().split("/")[0].trim();
-  const firstPart = cleaned.split(/\s+/)[0].trim();
-  return firstPart;
+  const firstPart = cleaned.split(/\s+/)[0].trim().replace(/[^a-z0-9]/g, "");
+  return yuePinyinAliasMap[firstPart] || firstPart;
 }
 
 function withToneFallbacks(pinyin) {
@@ -490,6 +703,9 @@ function withSpellingFallbacks(pinyin) {
   const queue = [pinyin];
   const seen = new Set([pinyin]);
   const rules = [
+    (value) => value.replace(/^a([1-9])$/, "aa$1"),
+    (value) => value.replace(/^(.*)eu([1-9])$/, "$1eoi$2"),
+    (value) => value.replace(/^(.*)oet([1-9])$/, "$1eot$2"),
     (value) => value.replace(/^(.*)eui([1-9])$/, "$1eoi$2"),
     (value) => value.replace(/^(.*)eun([1-9])$/, "$1eon$2"),
     (value) => value.replace(/^(.*)eung([1-9])$/, "$1oeng$2"),
@@ -1136,7 +1352,7 @@ async function searchYueWord() {
     return;
   }
 
-  const results = findYueWords(word);
+  const results = searchYueDictionaryEntries(word, { limit: 200 });
 
   if (results.length > 0) {
     renderYueDictResult(results);
