@@ -1394,30 +1394,82 @@ sendChatBtn.addEventListener("click", async () => {
 
 function extractYueDictContext(text) {
   if (!yueDictionary || yueDictionary.length === 0) return "";
-  
-  const yueKeywords = ["粤语", "广东话", "粤", "点解", "咩", "嘅", "喺", "佢", "唔", "啲", "嘢", "噉", "喇", "嚟", "係"];
+
+  const yueKeywords = ["粤语", "广东话", "粤", "点解", "咩", "嘅", "喺", "佢", "唔", "啲", "嘢", "噉", "喇", "嚟", "係", "发音", "拼音", "声调", "读", "说", "讲", "话", "怎么", "什么", "意思", "翻译", "学习"];
   const hasYueKeyword = yueKeywords.some(keyword => text.includes(keyword));
-  
+
   if (!hasYueKeyword) return "";
-  
-  const singleChars = text.replace(/[^\u4e00-\u9fff]/g, "").split("").filter(c => c.trim());
+
+  const chars = text.replace(/[^\u4e00-\u9fff]/g, "").split("").filter(c => c.trim());
+  const seen = new Set();
   const matchedEntries = [];
-  
-  for (const char of singleChars) {
+
+  for (const char of chars) {
     const found = yueDictionary.filter((entry) => entry.simp === char || entry.trad === char);
-    if (found.length > 0) {
-      matchedEntries.push(...found.slice(0, 2));
+    for (const entry of found.slice(0, 2)) {
+      const key = `${entry.simp}|${entry.pinyin}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        matchedEntries.push(entry);
+      }
     }
   }
-  
+
+  const words = text.replace(/[^\u4e00-\u9fff]+/g, " ").trim().split(/\s+/);
+  for (const word of words) {
+    if (word.length < 2) continue;
+    const found = yueDictionary.filter((entry) => entry.simp === word || entry.trad === word);
+    for (const entry of found.slice(0, 1)) {
+      const key = `${entry.simp}|${entry.pinyin}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        matchedEntries.push(entry);
+      }
+    }
+  }
+
   if (matchedEntries.length === 0) return "";
-  
-  const uniqueEntries = matchedEntries.slice(0, 10);
+
+  const uniqueEntries = matchedEntries.slice(0, 15);
   return uniqueEntries.map(entry => {
     const example = entry.example ? `（示例：${entry.example}）` : "";
     const explanation = entry.explanation ? ` - ${entry.explanation}` : "";
-    return `${entry.simp} (${entry.pinyin})${example}${explanation}`;
+    return `${entry.simp}(${entry.trad}) 拼音:${entry.pinyin}${example}${explanation}`;
   }).join("\n");
+}
+
+function extractTranslateRAG(input, direction) {
+  if (!yueDictionary || yueDictionary.length === 0) return "";
+
+  const chars = input.replace(/[^\u4e00-\u9fff]/g, "").split("").filter(c => c.trim());
+  const seen = new Set();
+  const matchedEntries = [];
+
+  for (const char of chars) {
+    const found = yueDictionary.filter((entry) => entry.simp === char || entry.trad === char);
+    for (const entry of found.slice(0, 2)) {
+      const key = `${entry.simp}|${entry.pinyin}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        matchedEntries.push(entry);
+      }
+    }
+  }
+
+  if (matchedEntries.length === 0) return "";
+
+  const uniqueEntries = matchedEntries.slice(0, 20);
+  const entries = uniqueEntries.map(entry => {
+    const example = entry.example ? `（示例：${entry.example}）` : "";
+    const explanation = entry.explanation ? ` - ${entry.explanation}` : "";
+    return `${entry.simp}(${entry.trad}) 拼音:${entry.pinyin}${example}${explanation}`;
+  }).join("\n");
+
+  if (direction === "zh_to_yue") {
+    return `以下是输入文本中部分汉字的粤语词典参考信息，翻译时请参考这些粤拼和用法：\n${entries}`;
+  } else {
+    return `以下是输入文本中部分字的粤语词典参考信息，翻译时请参考这些粤拼和含义：\n${entries}`;
+  }
 }
 
 translateBtn.addEventListener("click", async () => {
@@ -1427,11 +1479,13 @@ translateBtn.addEventListener("click", async () => {
   const direction = directionEl.value;
 
   const systemPrompt = getTranslatePrompt(direction);
+  const ragContext = extractTranslateRAG(input, direction);
+  const userContent = ragContext ? `${input}\n\n[${ragContext}]` : input;
 
   try {
     const result = await callChatAPI([
       { role: "system", content: systemPrompt },
-      { role: "user", content: input },
+      { role: "user", content: userContent },
     ]);
     translateOutputEl.textContent = result;
     addToTranslateHistory(input, result, direction);
@@ -1803,6 +1857,97 @@ function saveQuizScore(score, total, difficulty) {
   updateProgressStats();
 }
 
+function getRandomDictEntries(count) {
+  if (!yueDictionary || yueDictionary.length === 0) return [];
+  const shuffled = [...yueDictionary].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count).filter(e => e.pinyin && e.explanation);
+}
+
+async function generateAIQuiz() {
+  const difficulty = document.getElementById("quizDifficulty").value;
+  const aiQuizBtn = document.getElementById("startAIQuizBtn");
+  const originalText = aiQuizBtn.textContent;
+  aiQuizBtn.textContent = "AI 出题中...";
+  aiQuizBtn.disabled = true;
+
+  const dictEntries = getRandomDictEntries(20);
+  const dictContext = dictEntries.map(entry => {
+    const example = entry.example ? `（示例：${entry.example}）` : "";
+    return `${entry.simp}(${entry.trad}) 拼音:${entry.pinyin} - ${entry.explanation || ""}${example}`;
+  }).join("\n");
+
+  const difficultyGuide = {
+    easy: "简单：题目为常见粤语词汇的含义选择，4个选项，1个正确答案",
+    medium: "中等：题目涉及粤语词汇的用法和含义辨析，4个选项，1个正确答案",
+    hard: "困难：题目涉及粤语语法、俚语、声调辨析等，4个选项，1个正确答案",
+  };
+
+  const prompt = `你是粤语学习测验出题专家。请根据提供的粤语词典信息，生成5道选择题。
+
+难度要求：${difficultyGuide[difficulty]}
+
+词典参考信息：
+${dictContext}
+
+请严格按照以下JSON格式输出，不要输出任何其他内容：
+[
+  {
+    "question": "问题文本",
+    "options": ["选项A", "选项B", "选项C", "选项D"],
+    "correct": 0
+  }
+]
+
+其中 correct 是正确选项的索引（0-3）。确保题目准确、选项有迷惑性但只有1个正确答案。`;
+
+  try {
+    const result = await callChatAPI([
+      { role: "system", content: "你是粤语学习测验出题专家。只输出JSON格式的题目数组，不要输出任何其他文字。" },
+      { role: "user", content: prompt },
+    ]);
+
+    let questions;
+    try {
+      const jsonMatch = result.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error("未找到JSON数组");
+      questions = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.error("解析AI出题结果失败:", parseErr, result);
+      aiQuizBtn.textContent = originalText;
+      aiQuizBtn.disabled = false;
+      alert("AI 出题格式解析失败，请重试或使用本地题库");
+      return;
+    }
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+      aiQuizBtn.textContent = originalText;
+      aiQuizBtn.disabled = false;
+      alert("AI 未生成有效题目，请重试");
+      return;
+    }
+
+    currentQuiz = questions.map(q => ({
+      question: q.question || "",
+      options: Array.isArray(q.options) ? q.options : ["A", "B", "C", "D"],
+      correct: typeof q.correct === "number" ? q.correct : 0,
+    }));
+
+    currentQuestionIndex = 0;
+    quizScore = 0;
+    quizDifficulty = difficulty;
+
+    document.getElementById("quizStart").style.display = "none";
+    document.getElementById("quizQuestion").style.display = "block";
+    renderQuestion();
+  } catch (err) {
+    console.error("AI 出题失败:", err);
+    alert(`AI 出题失败：${getErrorMessage(err)}\n请检查 AI 服务是否正常，或使用本地题库。`);
+  } finally {
+    aiQuizBtn.textContent = originalText;
+    aiQuizBtn.disabled = false;
+  }
+}
+
 function trackAudioPlayed() {
   const stats = JSON.parse(localStorage.getItem("dls-ai-progress-stats") || "{}");
   stats.audioPlayed = (stats.audioPlayed || 0) + 1;
@@ -1876,6 +2021,7 @@ document.querySelectorAll(".phrase-cat-btn").forEach(btn => {
 });
 
 document.getElementById("startQuizBtn").addEventListener("click", startQuiz);
+document.getElementById("startAIQuizBtn").addEventListener("click", generateAIQuiz);
 document.getElementById("nextQuestionBtn").addEventListener("click", nextQuestion);
 
 const tonePracticeWords = [
