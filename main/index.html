@@ -21,8 +21,10 @@
         <li><button class="nav-btn" data-page="daily">📅 每日</button></li>
         <li><button class="nav-btn" data-page="quiz">🎯 测验</button></li>
         <li><button class="nav-btn" data-page="tones">🎵 声调</button></li>
+        <li><button class="nav-btn" data-page="wordbook">📕 生词本</button></li>
         <li><button class="nav-btn" data-page="favorites">⭐ 收藏</button></li>
         <li><button class="nav-btn" data-page="history">📜 历史</button></li>
+        <li><button class="nav-btn" data-page="achievement">🏆 成就</button></li>
         <li><button class="nav-btn" data-page="settings">⚙️ 设置</button></li>
       </ul>
     </nav>
@@ -71,6 +73,16 @@
             <h3>收藏夹</h3>
             <p>保存常用翻译内容</p>
           </div>
+          <div class="feature-card" onclick="navigateTo('wordbook')">
+            <div class="feature-icon">📕</div>
+            <h3>生词本</h3>
+            <p>自动收集查询过的生词</p>
+          </div>
+          <div class="feature-card" onclick="navigateTo('achievement')">
+            <div class="feature-icon">🏆</div>
+            <h3>学习成就</h3>
+            <p>查看徽章和等级</p>
+          </div>
         </div>
 
         <div class="daily-quote-section">
@@ -87,6 +99,14 @@
 
         <div class="progress-section">
           <h2>📊 学习进度</h2>
+          <div class="daily-checkin-section">
+            <button id="dailyCheckinBtn" class="btn btn-checkin">📋 每日打卡</button>
+            <span id="checkinStreak" class="checkin-streak">连续 0 天</span>
+          </div>
+          <div class="daily-tasks-section">
+            <h3>📝 今日任务</h3>
+            <div id="dailyTasksList" class="daily-tasks-list"></div>
+          </div>
           <div class="progress-stats">
             <div class="stat-card">
               <div class="stat-icon">📝</div>
@@ -135,7 +155,7 @@
               rows="3"
               placeholder="输入你想问的问题，例如：请用简单例子解释粤语语法。"
             ></textarea>
-            <button id="sendChat" class="btn">发送</button>
+            <button id="sendChat" class="btn">发送<span class="shortcut-hint">Ctrl+Enter</span></button>
           </div>
         </div>
       </section>
@@ -159,7 +179,7 @@
             placeholder="输入要翻译的文本..."
           ></textarea>
           <div class="translate-actions">
-            <button id="translateBtn" class="btn">开始翻译</button>
+            <button id="translateBtn" class="btn">开始翻译<span class="shortcut-hint">Ctrl+Enter</span></button>
             <button id="clearTranslateBtn" class="btn secondary">清空</button>
           </div>
           <div class="result">
@@ -188,6 +208,19 @@
             />
             <button id="yueDictSearchBtn" class="btn">查询</button>
           </div>
+          <div class="pronunciation-controls">
+            <label>发音速度
+              <select id="pronSpeed">
+                <option value="0.6">慢速</option>
+                <option value="1.0" selected>正常</option>
+                <option value="1.5">快速</option>
+              </select>
+            </label>
+            <label class="tts-fallback-label">
+              <input type="checkbox" id="useWebSpeechTTS" />
+              使用浏览器语音（备选）
+            </label>
+          </div>
           <div id="yueDictResult" class="yue-dict-result"></div>
           <p id="noYueDictResult" class="no-data">请输入词汇进行查询</p>
         </div>
@@ -197,12 +230,21 @@
       <section id="page-favorites" class="page">
         <div class="panel">
           <h2>⭐ 收藏夹</h2>
+          <div class="favorites-category-bar">
+            <button class="fav-cat-btn active" data-favcat="all">全部</button>
+            <button class="fav-cat-btn" data-favcat="翻译">翻译</button>
+            <button class="fav-cat-btn" data-favcat="短语">短语</button>
+            <button class="fav-cat-btn" data-favcat="每日一句">每日一句</button>
+            <button class="fav-cat-btn" data-favcat="生词">生词</button>
+            <button class="fav-cat-btn" data-favcat="自定义">自定义</button>
+          </div>
           <div class="favorites-list">
             <div id="favoritesList" class="favorites-content"></div>
             <p id="noFavorites" class="no-data">暂无收藏内容</p>
           </div>
           <div class="favorites-actions">
             <button id="clearFavoritesBtn" class="btn secondary">清空收藏</button>
+            <button id="shareFavoritesBtn" class="btn">📤 分享收藏</button>
           </div>
         </div>
       </section>
@@ -237,6 +279,16 @@
               <button id="dailyNextQuoteBtn" class="btn">下一句</button>
               <button id="dailyFavoriteQuoteBtn" class="icon-btn" title="收藏">⭐</button>
             </div>
+          </div>
+          <div class="custom-quote-section">
+            <h3>✏️ 自定义每日一句</h3>
+            <div class="custom-quote-form">
+              <input type="text" id="customQuoteYue" placeholder="粤语句子" />
+              <input type="text" id="customQuoteZh" placeholder="中文翻译" />
+              <input type="text" id="customQuotePinyin" placeholder="粤拼（如：nei5 hou2）" />
+              <button id="addCustomQuoteBtn" class="btn">添加</button>
+            </div>
+            <div id="customQuotesList" class="custom-quotes-list"></div>
           </div>
           <div class="daily-history">
             <h3>往期每日一句</h3>
@@ -285,6 +337,10 @@
           <h2>🎵 粤语声调练习</h2>
           <div class="tone-intro">
             <p>粤语有6个基本声调（加上入声共9声），声调不同，意思也不同。</p>
+          </div>
+          <div class="tone-visual-chart">
+            <h3>📈 声调可视化</h3>
+            <canvas id="toneChart" width="500" height="280"></canvas>
           </div>
           <div class="tone-grid">
             <div class="tone-card" data-tone="1">
@@ -361,6 +417,85 @@
               </div>
             </div>
           </div>
+          <div class="pronunciation-compare-section">
+            <h3>🎤 发音对比</h3>
+            <p>先听标准发音，再录下你的发音进行对比</p>
+            <div class="compare-controls">
+              <div class="compare-item">
+                <span>标准发音</span>
+                <input type="text" id="comparePinyin" placeholder="输入粤拼（如：nei5 hou2）" />
+                <button id="playStandardBtn" class="btn">🔊 播放标准</button>
+              </div>
+              <div class="compare-item">
+                <span>你的发音</span>
+                <button id="startRecordBtn" class="btn btn-record">🎙️ 开始录音</button>
+                <button id="stopRecordBtn" class="btn btn-stop" style="display:none;">⏹️ 停止录音</button>
+                <button id="playRecordingBtn" class="btn" style="display:none;">▶️ 回放录音</button>
+              </div>
+            </div>
+            <div id="compareResult" class="compare-result"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 生词本页面 -->
+      <section id="page-wordbook" class="page">
+        <div class="panel">
+          <h2>📕 生词本</h2>
+          <div class="wordbook-controls">
+            <div class="wordbook-filter">
+              <button class="wb-filter-btn active" data-wbfilter="all">全部</button>
+              <button class="wb-filter-btn" data-wbfilter="new">新词</button>
+              <button class="wb-filter-btn" data-wbfilter="learning">学习中</button>
+              <button class="wb-filter-btn" data-wbfilter="review">待复习</button>
+              <button class="wb-filter-btn" data-wbfilter="mastered">已掌握</button>
+            </div>
+            <button id="startReviewBtn" class="btn btn-review">🔄 开始复习</button>
+          </div>
+          <div id="wordbookList" class="wordbook-list"></div>
+          <p id="noWordbook" class="no-data">暂无生词，查询词典时将自动添加</p>
+          <div id="reviewModal" class="review-modal" style="display:none;">
+            <div class="review-card">
+              <h3>间隔复习</h3>
+              <div id="reviewCardContent" class="review-card-content"></div>
+              <div class="review-card-actions">
+                <button id="reviewForgotBtn" class="btn btn-review-forgot">😕 忘记了</button>
+                <button id="reviewVagueBtn" class="btn btn-review-vague">🤔 模糊</button>
+                <button id="reviewRememberBtn" class="btn btn-review-remember">😊 记住了</button>
+                <button id="reviewEasyBtn" class="btn btn-review-easy">😎 很简单</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 成就页面 -->
+      <section id="page-achievement" class="page">
+        <div class="panel">
+          <h2>🏆 学习成就</h2>
+          <div class="achievement-level">
+            <div class="level-display">
+              <div class="level-icon" id="levelIcon">🌱</div>
+              <div class="level-info">
+                <h3 id="levelName">初学者</h3>
+                <p id="levelDesc">刚刚开始粤语学习之旅</p>
+              </div>
+            </div>
+            <div class="level-progress">
+              <div class="level-xp-bar">
+                <div class="level-xp-fill" id="levelXpFill" style="width: 0%"></div>
+              </div>
+              <span id="levelXpText">0 / 100 XP</span>
+            </div>
+          </div>
+          <div class="achievement-badges">
+            <h3>🎖️ 徽章</h3>
+            <div id="badgeGrid" class="badge-grid"></div>
+          </div>
+          <div class="achievement-share">
+            <button id="shareAchievementBtn" class="btn">📤 分享成就</button>
+            <button id="exportReportBtn" class="btn">📄 导出学习报告</button>
+          </div>
         </div>
       </section>
 
@@ -400,11 +535,51 @@
             </label>
             <label>
               Model
-              <input id="model" type="text" value="qwen3.5:4b" placeholder="qwen3.5:4b" />
+              <div class="model-select-row">
+                <input id="model" type="text" value="qwen3.5:0.8b" placeholder="qwen3.5:0.8b" />
+                <select id="modelPreset">
+                  <option value="">-- 推荐模型 --</option>
+                  <option value="qwen3.5:0.8b">qwen3.5:0.8b (推荐·轻量)</option>
+                  <option value="qwen2.5:0.5b">qwen2.5:0.5b (最小·省内存)</option>
+                  <option value="qwen2.5:1.5b">qwen2.5:1.5b (小模型)</option>
+                  <option value="qwen2.5:3b">qwen2.5:3b (中模型)</option>
+                  <option value="qwen2.5:7b">qwen2.5:7b (大模型)</option>
+                  <option value="gemma3:1b">gemma3:1b (Google轻量)</option>
+                  <option value="gemma3:4b">gemma3:4b (Google中模型)</option>
+                  <option value="llama3.2:1b">llama3.2:1b (Meta轻量)</option>
+                  <option value="llama3.2:3b">llama3.2:3b (Meta中模型)</option>
+                  <option value="phi4-mini">phi4-mini (微软轻量)</option>
+                </select>
+              </div>
             </label>
           </div>
           <button id="saveConfig" class="btn">保存配置</button>
           <small>说明：默认使用本地 Ollama；配置只保存在当前浏览器本地存储中。</small>
+
+          <div class="model-guide">
+            <h3>📦 模型下载引导</h3>
+            <p>在终端运行以下命令下载模型：</p>
+            <div class="guide-code">
+              <code id="modelDownloadCmd">ollama pull qwen3.5:0.8b</code>
+              <button class="btn btn-sm" onclick="copyModelCmd()">复制</button>
+            </div>
+            <p>其他常用命令：</p>
+            <div class="guide-code-list">
+              <div class="guide-code"><code>ollama list</code><span>查看已安装模型</span></div>
+              <div class="guide-code"><code>ollama rm 模型名</code><span>删除模型</span></div>
+              <div class="guide-code"><code>ollama serve</code><span>启动 Ollama 服务</span></div>
+            </div>
+            <p>内存建议：0.5b≈512MB | 1.5b≈1.5GB | 3b≈2.5GB | 7b≈5GB</p>
+          </div>
+
+          <div class="data-management">
+            <h3>💾 数据管理</h3>
+            <div class="data-actions">
+              <button id="exportAllDataBtn" class="btn">📤 导出全部数据</button>
+              <button id="importDataBtn" class="btn">📥 导入数据</button>
+              <input type="file" id="importDataFile" accept=".json" style="display:none" />
+            </div>
+          </div>
         </div>
       </section>
     </main>

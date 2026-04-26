@@ -1097,6 +1097,183 @@ textarea {
 }
 
 /* 响应式设计 */
+/* 像素风加载动画 */
+.pixel-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--card);
+  border: var(--pixel-size) solid var(--accent);
+  margin-top: 8px;
+}
+
+.pixel-loader-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.pixel-loader-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  animation: pixelBlink 1s steps(2) infinite;
+}
+
+.pixel-loader-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+  background: var(--accent-2);
+}
+
+.pixel-loader-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+  background: var(--favorite);
+}
+
+@keyframes pixelBlink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.pixel-loader-text {
+  font-size: 0.7rem;
+  color: var(--accent);
+  animation: pixelPulse 1.5s steps(2) infinite;
+}
+
+@keyframes pixelPulse {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.5; }
+}
+
+/* 像素风 Toast 提示 */
+.pixel-toast-container {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pixel-toast {
+  background: var(--card);
+  color: var(--accent);
+  border: var(--pixel-size) solid var(--accent);
+  padding: 12px 20px;
+  font-size: 0.7rem;
+  font-family: inherit;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+  animation: toastIn 0.3s steps(4) forwards;
+}
+
+.pixel-toast.fade-out {
+  animation: toastOut 0.4s steps(4) forwards;
+}
+
+@keyframes toastIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toastOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(100%); opacity: 0; }
+}
+
+/* 模型选择行 */
+.model-select-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.model-select-row input {
+  flex: 1;
+}
+
+.model-select-row select {
+  width: 180px;
+  padding: 10px;
+  border: var(--pixel-size) solid var(--border);
+  font-size: 0.7rem;
+  background: #1a1a24;
+  color: var(--text);
+  font-family: inherit;
+}
+
+/* 模型下载引导 */
+.model-guide {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--bg);
+  border: var(--pixel-size) solid var(--border);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+}
+
+.model-guide h3 {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: var(--accent-2);
+}
+
+.model-guide p {
+  margin: 8px 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.guide-code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #0a0a14;
+  border: 2px solid var(--border);
+}
+
+.guide-code code {
+  flex: 1;
+  font-size: 0.7rem;
+  color: var(--accent);
+  font-family: 'PixelFont', monospace;
+}
+
+.guide-code span {
+  font-size: 0.6rem;
+  color: var(--muted);
+}
+
+.guide-code-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.6rem;
+  margin-top: 0;
+}
+
+/* 键盘快捷键提示 */
+.shortcut-hint {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--bg);
+  border: 2px solid var(--border);
+  font-size: 0.5rem;
+  color: var(--muted);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* 增强移动端响应式 */
 @media (max-width: 768px) {
   .navbar {
     padding: 0 10px;
@@ -1149,5 +1326,71 @@ textarea {
   
   .tone-options {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .model-select-row {
+    flex-direction: column;
+  }
+
+  .model-select-row select {
+    width: 100%;
+  }
+
+  .guide-code {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pixel-toast-container {
+    right: 10px;
+    left: 10px;
+  }
+
+  .pixel-toast {
+    font-size: 0.6rem;
+    padding: 8px 12px;
+  }
+
+  .shortcut-hint {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-menu {
+    gap: 0;
+  }
+
+  .nav-btn {
+    padding: 8px 8px;
+    font-size: 0.45rem;
+  }
+
+  .hero h1 {
+    font-size: 1rem;
+  }
+
+  .feature-card {
+    padding: 16px;
+  }
+
+  .feature-icon {
+    font-size: 1.8rem;
+  }
+
+  .feature-card h3 {
+    font-size: 0.8rem;
+  }
+
+  .feature-card p {
+    font-size: 0.6rem;
+  }
+
+  h2 {
+    font-size: 1rem;
+  }
+
+  .panel {
+    padding: 12px;
   }
 }

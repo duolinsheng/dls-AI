@@ -7,6 +7,7 @@ const chatHistoryEl = document.getElementById("chatHistory");
 const apiKeyEl = document.getElementById("apiKey");
 const baseUrlEl = document.getElementById("baseUrl");
 const modelEl = document.getElementById("model");
+const modelPresetEl = document.getElementById("modelPreset");
 const saveConfigBtn = document.getElementById("saveConfig");
 
 const chatInputEl = document.getElementById("chatInput");
@@ -33,6 +34,7 @@ const yueDictSearchEl = document.getElementById("yueDictSearch");
 const yueDictSearchBtn = document.getElementById("yueDictSearchBtn");
 const yueDictResultEl = document.getElementById("yueDictResult");
 const noYueDictResultEl = document.getElementById("noYueDictResult");
+let currentFavCategory = "all";
 
 // 页面导航功能
 function navigateTo(pageName) {
@@ -79,7 +81,7 @@ const conversation = [
   {
     role: "system",
     content:
-      "你是一个耐心的粤语学习助手。回答简洁、准确、友好。若涉及粤语，请尽量提供中文解释和粤语发音。",
+      "你是一个耐心的粤语学习助手，精通粤语发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤语拼音（粤拼）和标准中文解释\n2. 解释粤语字词时，给出对应的繁体字和简体字\n3. 如有词典参考信息，请优先参考其中的粤拼和含义\n4. 举例说明时使用常见的生活场景\n5. 如果用户问发音，请用粤拼标注（如：你好 nei5 hou2）",
   },
 ];
 
@@ -252,6 +254,63 @@ function getErrorMessage(err) {
   return String(err);
 }
 
+function getFriendlyError(err) {
+  const msg = getErrorMessage(err);
+  if (msg.includes("请求超时")) {
+    return "⏱️ 请求超时了。建议：\n1. 换一个更小的模型（如 qwen2.5:0.5b）\n2. 缩短输入内容\n3. 检查电脑内存是否充足";
+  }
+  if (msg.includes("无法连接")) {
+    return "🔌 无法连接到模型服务。建议：\n1. 确认 Ollama 已启动（终端运行 ollama serve）\n2. 检查 Base URL 配置是否正确\n3. 确认模型已下载（终端运行 ollama list）";
+  }
+  if (msg.includes("模型请求失败（500）") || msg.includes("500")) {
+    return "⚠️ 模型内部错误。建议：\n1. 换一个更小的模型（内存不足时常见）\n2. 重启 Ollama 服务\n3. 检查模型是否完整下载";
+  }
+  if (msg.includes("404")) {
+    return "🔍 模型未找到。建议：\n1. 确认模型名称拼写正确\n2. 终端运行 ollama list 查看已安装模型\n3. 运行 ollama pull 模型名 下载模型";
+  }
+  if (msg.includes("返回为空")) {
+    return "📭 模型返回为空。建议：\n1. 重启 Ollama 服务\n2. 换一个模型试试";
+  }
+  if (msg.includes("https") && (msg.includes("localhost") || msg.includes("127.0.0.1"))) {
+    return "🔒 本地地址不能使用 https。请在设置中将 https 改为 http";
+  }
+  return `❌ 请求失败：${msg}`;
+}
+
+function showLoading(show) {
+  let loader = document.getElementById("pixelLoader");
+  if (show) {
+    if (!loader) {
+      loader = document.createElement("div");
+      loader.id = "pixelLoader";
+      loader.className = "pixel-loader";
+      loader.innerHTML = '<div class="pixel-loader-dots"><span></span><span></span><span></span></div><div class="pixel-loader-text">思考中...</div>';
+      chatHistoryEl.parentElement.insertBefore(loader, chatHistoryEl.nextSibling);
+    }
+    loader.style.display = "flex";
+  } else {
+    if (loader) loader.style.display = "none";
+  }
+}
+
+function showPixelToast(message) {
+  let container = document.getElementById("pixelToastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "pixelToastContainer";
+    container.className = "pixel-toast-container";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = "pixel-toast";
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add("fade-out");
+    setTimeout(() => toast.remove(), 400);
+  }, 2000);
+}
+
 function extractContentFromResponse(data) {
   if (data && data.message && typeof data.message.content === "string") {
     return data.message.content.trim();
@@ -371,9 +430,9 @@ function localTranslate(input, direction) {
 function getTranslatePrompt(direction) {
   const promptMap = {
     zh_to_yue:
-      "你是翻译助手。请把用户输入的中文翻译成自然粤语。可使用常见粤语字词，表达地道。只输出翻译结果。",
+      "你是专业的粤语翻译助手。请把用户输入的标准中文翻译成地道粤语。\n规则：\n1. 使用粤语特有字词（如：係、嘅、喺、唔、咗、啲、嘢、噉、喇、嚟、佢等）\n2. 使用粤语音译词（如：的士、巴士、朱古力等）\n3. 保持粤语语法结构（如：我哋、呢个、嗰个、点解等）\n4. 如有词典参考信息，请优先参考其中的粤拼和用法\n5. 只输出翻译结果，不要解释",
     yue_to_zh:
-      "你是翻译助手。请把用户输入的粤语翻译成标准中文，表达自然。只输出翻译结果。",
+      "你是专业的粤语翻译助手。请把用户输入的粤语翻译成标准中文（普通话）。\n规则：\n1. 将粤语特有字词转换为标准中文（如：係→是、嘅→的、喺→在、唔→不、咗→了等）\n2. 将粤语音译词转为标准中文（如：的士→出租车、巴士→公交车等）\n3. 将粤语语法转为标准中文语法（如：我哋→我们、呢个→这个等）\n4. 如有词典参考信息，请优先参考其中的含义\n5. 只输出翻译结果，不要解释",
   };
   return (
     promptMap[direction] ||
@@ -1089,53 +1148,6 @@ function saveFavorites(favorites) {
   localStorage.setItem("dls-ai-favorites", JSON.stringify(favorites));
 }
 
-function renderFavorites() {
-  const favorites = loadFavorites();
-  favoritesListEl.innerHTML = "";
-  
-  if (favorites.length === 0) {
-    noFavoritesEl.style.display = "block";
-    return;
-  }
-  
-  noFavoritesEl.style.display = "none";
-  
-  favorites.forEach((item, index) => {
-    const el = document.createElement("div");
-    el.className = "favorites-item";
-    el.innerHTML = `
-      <div class="favorites-item-content">
-        <strong>${getTranslateDirectionName(item.direction)}</strong>
-        <p style="margin: 4px 0;">${item.input}</p>
-        <p style="margin: 4px 0; color: var(--accent); font-weight: 500;">${item.output}</p>
-      </div>
-      <div class="favorites-item-actions">
-        <button class="icon-btn" title="朗读" onclick="speakText('${item.output.replace(/'/g, "\\'")}')">🔊</button>
-        <button class="icon-btn" title="复制" onclick="copyText('${item.output.replace(/'/g, "\\'")}')">📋</button>
-        <button class="icon-btn" title="删除" style="color: var(--delete);" onclick="deleteFavorite(${index})">🗑️</button>
-      </div>
-    `;
-    favoritesListEl.appendChild(el);
-  });
-}
-
-function deleteFavorite(index) {
-  const favorites = loadFavorites();
-  favorites.splice(index, 1);
-  saveFavorites(favorites);
-  renderFavorites();
-}
-
-function addToFavorites(input, output, direction) {
-  const favorites = loadFavorites();
-  favorites.unshift({ input, output, direction, timestamp: Date.now() });
-  if (favorites.length > 50) {
-    favorites.pop();
-  }
-  saveFavorites(favorites);
-  renderFavorites();
-}
-
 function loadTranslateHistory() {
   const raw = localStorage.getItem("dls-ai-translate-history");
   if (!raw) return [];
@@ -1369,8 +1381,68 @@ saveConfigBtn.addEventListener("click", () => {
     model: modelEl.value.trim() || DEFAULT_MODEL,
   };
   setConfig(cfg);
-  alert("配置已保存");
+  showPixelToast("✅ 配置已保存");
 });
+
+modelPresetEl.addEventListener("change", () => {
+  const val = modelPresetEl.value;
+  if (val) {
+    modelEl.value = val;
+    const cmdEl = document.getElementById("modelDownloadCmd");
+    if (cmdEl) cmdEl.textContent = `ollama pull ${val}`;
+  }
+});
+
+modelEl.addEventListener("input", () => {
+  const val = modelEl.value.trim();
+  const cmdEl = document.getElementById("modelDownloadCmd");
+  if (cmdEl && val) cmdEl.textContent = `ollama pull ${val}`;
+});
+
+function copyModelCmd() {
+  const cmd = document.getElementById("modelDownloadCmd");
+  if (!cmd) return;
+  navigator.clipboard.writeText(cmd.textContent).then(() => {
+    showPixelToast("📋 已复制命令");
+  }).catch(() => {
+    showPixelToast("复制失败，请手动复制");
+  });
+}
+
+const CHAT_STORAGE_KEY = "dls-ai-chat-history";
+const MAX_CHAT_HISTORY = 50;
+
+function saveConversation() {
+  const toSave = conversation.filter(m => m.role !== "system").slice(-MAX_CHAT_HISTORY);
+  try {
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(toSave));
+  } catch {}
+}
+
+function loadConversation() {
+  try {
+    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return;
+    for (const msg of saved) {
+      conversation.push(msg);
+      renderMessage(msg.role, msg.content);
+    }
+  } catch {}
+}
+
+function clearConversation() {
+  conversation.length = 0;
+  conversation.push({
+    role: "system",
+    content:
+      "你是一个耐心的粤语学习助手，精通粤语发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤语拼音（粤拼）和标准中文解释\n2. 解释粤语字词时，给出对应的繁体字和简体字\n3. 如有词典参考信息，请优先参考其中的粤拼和含义\n4. 举例说明时使用常见的生活场景\n5. 如果用户问发音，请用粤拼标注（如：你好 nei5 hou2）",
+  });
+  chatHistoryEl.innerHTML = "";
+  localStorage.removeItem(CHAT_STORAGE_KEY);
+  showPixelToast("🗑️ 对话已清空");
+}
 
 sendChatBtn.addEventListener("click", async () => {
   const input = chatInputEl.value.trim();
@@ -1379,16 +1451,22 @@ sendChatBtn.addEventListener("click", async () => {
   chatInputEl.value = "";
 
   const dictContext = extractYueDictContext(input);
-  const lastMessage = conversation.length > 1 ? conversation[conversation.length - 1] : null;
   const enhancedInput = dictContext ? `${input}\n\n[粤语词典参考信息]\n${dictContext}` : input;
   
   conversation.push({ role: "user", content: enhancedInput });
+  saveConversation();
+
+  showLoading(true);
   try {
     const reply = await callChatAPI(conversation);
     conversation.push({ role: "assistant", content: reply });
     renderMessage("assistant", reply);
+    saveConversation();
   } catch (err) {
-    renderMessage("assistant", `请求失败：${getErrorMessage(err)}`);
+    const errorMsg = getFriendlyError(err);
+    renderMessage("assistant", errorMsg);
+  } finally {
+    showLoading(false);
   }
 });
 
@@ -1475,7 +1553,8 @@ function extractTranslateRAG(input, direction) {
 translateBtn.addEventListener("click", async () => {
   const input = translateInputEl.value.trim();
   if (!input) return;
-  translateOutputEl.textContent = "翻译中...";
+  translateOutputEl.textContent = "⏳ 翻译中...";
+  translateBtn.disabled = true;
   const direction = directionEl.value;
 
   const systemPrompt = getTranslatePrompt(direction);
@@ -1491,8 +1570,11 @@ translateBtn.addEventListener("click", async () => {
     addToTranslateHistory(input, result, direction);
   } catch (err) {
     const fallback = localTranslate(input, direction);
-    translateOutputEl.textContent = `${fallback}\n\n（模型翻译失败：${getErrorMessage(err)}；已回退到本地基础词典）`;
+    const friendlyErr = getFriendlyError(err);
+    translateOutputEl.textContent = `${fallback}\n\n（${friendlyErr}；已回退到本地基础词典）`;
     addToTranslateHistory(input, fallback, direction);
+  } finally {
+    translateBtn.disabled = false;
   }
 });
 
@@ -1534,14 +1616,7 @@ clearFavoritesBtn.addEventListener("click", () => {
 
 clearChatHistoryBtn.addEventListener("click", () => {
   if (confirm("确定要清空对话历史吗？")) {
-    localStorage.removeItem("dls-ai-chat-history");
-    chatHistoryEl.innerHTML = "";
-    conversation.length = 1;
-    conversation[0] = {
-      role: "system",
-      content:
-        "你是一个耐心的粤语学习助手。回答简洁、准确、友好。若涉及粤语，请尽量提供中文解释和粤语发音。",
-    };
+    clearConversation();
   }
 });
 
@@ -2160,8 +2235,1060 @@ updateProgressStats();
 initNavigation();
 
 loadConfigToForm();
+loadConversation();
 renderFavorites();
 renderTranslateHistory();
 loadYueDictionary().catch(() => {
-  // 首次预加载失败时，保留在查询时重试。
 });
+
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey) {
+    switch (e.key) {
+      case "Enter":
+        e.preventDefault();
+        if (document.getElementById("page-chat").classList.contains("active")) {
+          sendChatBtn.click();
+        } else if (document.getElementById("page-translate").classList.contains("active")) {
+          translateBtn.click();
+        }
+        break;
+      case "1":
+        e.preventDefault();
+        navigateTo("home");
+        break;
+      case "2":
+        e.preventDefault();
+        navigateTo("chat");
+        break;
+      case "3":
+        e.preventDefault();
+        navigateTo("translate");
+        break;
+      case "4":
+        e.preventDefault();
+        navigateTo("dictionary");
+        break;
+      case "5":
+        e.preventDefault();
+        navigateTo("quiz");
+        break;
+    }
+  }
+  if (e.key === "Escape") {
+    chatInputEl.blur();
+    translateInputEl.blur();
+    yueDictSearchEl.blur();
+  }
+});
+
+// ==================== 生词本功能 ====================
+const WORDBOOK_KEY = "dls-ai-wordbook";
+const SR_INTERVALS = [1, 3, 7, 14, 30, 60];
+
+function loadWordbook() {
+  try {
+    return JSON.parse(localStorage.getItem(WORDBOOK_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveWordbook(book) {
+  localStorage.setItem(WORDBOOK_KEY, JSON.stringify(book));
+}
+
+function addToWordbook(simp, trad, pinyin, explanation) {
+  const book = loadWordbook();
+  const existing = book.find(w => w.simp === simp && w.pinyin === pinyin);
+  if (existing) return;
+  book.push({
+    simp,
+    trad: trad || simp,
+    pinyin,
+    explanation: explanation || "",
+    status: "new",
+    level: 0,
+    nextReview: Date.now(),
+    addedAt: Date.now(),
+    reviewCount: 0,
+  });
+  saveWordbook(book);
+  renderWordbook();
+  addXP(2);
+}
+
+function updateWordStatus(simp, pinyin, quality) {
+  const book = loadWordbook();
+  const item = book.find(w => w.simp === simp && w.pinyin === pinyin);
+  if (!item) return;
+
+  item.reviewCount++;
+
+  if (quality === 0) {
+    item.level = 0;
+    item.status = "new";
+    item.nextReview = Date.now();
+  } else if (quality === 1) {
+    item.level = Math.max(0, item.level - 1);
+    item.status = "learning";
+    item.nextReview = Date.now() + SR_INTERVALS[Math.min(item.level, SR_INTERVALS.length - 1)] * 3600000;
+  } else if (quality === 2) {
+    item.level = Math.min(item.level + 1, SR_INTERVALS.length - 1);
+    item.status = item.level >= 4 ? "mastered" : "learning";
+    item.nextReview = Date.now() + SR_INTERVALS[item.level] * 86400000;
+    addXP(5);
+  } else if (quality === 3) {
+    item.level = Math.min(item.level + 2, SR_INTERVALS.length - 1);
+    item.status = item.level >= 4 ? "mastered" : "review";
+    item.nextReview = Date.now() + SR_INTERVALS[item.level] * 86400000;
+    addXP(8);
+  }
+
+  saveWordbook(book);
+  renderWordbook();
+}
+
+let currentWbFilter = "all";
+
+function renderWordbook() {
+  const book = loadWordbook();
+  const listEl = document.getElementById("wordbookList");
+  const noEl = document.getElementById("noWordbook");
+  if (!listEl) return;
+
+  const now = Date.now();
+  let filtered = book;
+  if (currentWbFilter === "new") filtered = book.filter(w => w.status === "new");
+  else if (currentWbFilter === "learning") filtered = book.filter(w => w.status === "learning");
+  else if (currentWbFilter === "review") filtered = book.filter(w => w.status !== "mastered" && w.nextReview <= now);
+  else if (currentWbFilter === "mastered") filtered = book.filter(w => w.status === "mastered");
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = "";
+    noEl.style.display = "block";
+    return;
+  }
+  noEl.style.display = "none";
+
+  listEl.innerHTML = filtered.map(w => {
+    const statusLabel = { new: "🆕 新词", learning: "📖 学习中", review: "🔄 待复习", mastered: "✅ 已掌握" }[w.status] || w.status;
+    const statusClass = `wb-status-${w.status}`;
+    return `<div class="wordbook-item ${statusClass}">
+      <div class="wb-main">
+        <span class="wb-char">${w.simp}</span>
+        <span class="wb-trad">(${w.trad})</span>
+        <span class="wb-pinyin">${w.pinyin}</span>
+        <span class="wb-status">${statusLabel}</span>
+      </div>
+      ${w.explanation ? `<div class="wb-explanation">${w.explanation}</div>` : ""}
+      <div class="wb-actions">
+        <button class="icon-btn" onclick="playYuePinyin('${w.pinyin}')">🔊</button>
+        <button class="icon-btn" onclick="removeFromWordbook('${w.simp}','${w.pinyin}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function removeFromWordbook(simp, pinyin) {
+  const book = loadWordbook().filter(w => !(w.simp === simp && w.pinyin === pinyin));
+  saveWordbook(book);
+  renderWordbook();
+}
+
+document.querySelectorAll(".wb-filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".wb-filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentWbFilter = btn.dataset.wbfilter;
+    renderWordbook();
+  });
+});
+
+// 间隔重复复习
+let reviewQueue = [];
+let currentReviewItem = null;
+
+document.getElementById("startReviewBtn").addEventListener("click", () => {
+  const book = loadWordbook();
+  const now = Date.now();
+  reviewQueue = book.filter(w => w.status !== "mastered" && w.nextReview <= now);
+  if (reviewQueue.length === 0) {
+    showPixelToast("🎉 暂无需要复习的生词！");
+    return;
+  }
+  reviewQueue.sort(() => Math.random() - 0.5);
+  document.getElementById("reviewModal").style.display = "flex";
+  showNextReviewCard();
+});
+
+function showNextReviewCard() {
+  if (reviewQueue.length === 0) {
+    document.getElementById("reviewModal").style.display = "none";
+    showPixelToast("✅ 复习完成！");
+    return;
+  }
+  currentReviewItem = reviewQueue.shift();
+  const content = document.getElementById("reviewCardContent");
+  content.innerHTML = `
+    <div class="review-word">${currentReviewItem.simp} <span style="font-size:0.85em;color:var(--muted)">(${currentReviewItem.trad})</span></div>
+    <div class="review-hint">点击显示答案</div>
+    <div class="review-answer" style="display:none;">
+      <p>拼音：${currentReviewItem.pinyin}</p>
+      <p>${currentReviewItem.explanation || ""}</p>
+      <button class="icon-btn" onclick="playYuePinyin('${currentReviewItem.pinyin}')">🔊</button>
+    </div>
+  `;
+  const hint = content.querySelector(".review-hint");
+  const answer = content.querySelector(".review-answer");
+  hint.addEventListener("click", () => {
+    hint.style.display = "none";
+    answer.style.display = "block";
+  });
+}
+
+document.getElementById("reviewForgotBtn").addEventListener("click", () => {
+  if (!currentReviewItem) return;
+  updateWordStatus(currentReviewItem.simp, currentReviewItem.pinyin, 0);
+  showNextReviewCard();
+});
+document.getElementById("reviewVagueBtn").addEventListener("click", () => {
+  if (!currentReviewItem) return;
+  updateWordStatus(currentReviewItem.simp, currentReviewItem.pinyin, 1);
+  showNextReviewCard();
+});
+document.getElementById("reviewRememberBtn").addEventListener("click", () => {
+  if (!currentReviewItem) return;
+  updateWordStatus(currentReviewItem.simp, currentReviewItem.pinyin, 2);
+  showNextReviewCard();
+});
+document.getElementById("reviewEasyBtn").addEventListener("click", () => {
+  if (!currentReviewItem) return;
+  updateWordStatus(currentReviewItem.simp, currentReviewItem.pinyin, 3);
+  showNextReviewCard();
+});
+
+// ==================== 每日打卡系统 ====================
+const CHECKIN_KEY = "dls-ai-checkin";
+const DAILY_TASKS_KEY = "dls-ai-daily-tasks";
+
+function loadCheckin() {
+  try { return JSON.parse(localStorage.getItem(CHECKIN_KEY) || "{}"); } catch { return {}; }
+}
+
+function saveCheckin(data) {
+  localStorage.setItem(CHECKIN_KEY, JSON.stringify(data));
+}
+
+function getTodayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function doDailyCheckin() {
+  const data = loadCheckin();
+  const today = getTodayStr();
+  if (data.lastCheckin === today) {
+    showPixelToast("📋 今日已打卡！");
+    return;
+  }
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  data.streak = data.lastCheckin === yesterday ? (data.streak || 0) + 1 : 1;
+  data.lastCheckin = today;
+  data.totalDays = (data.totalDays || 0) + 1;
+  saveCheckin(data);
+  addXP(10);
+  updateCheckinUI();
+  showPixelToast(`📋 打卡成功！连续 ${data.streak} 天`);
+  checkAchievements();
+}
+
+function updateCheckinUI() {
+  const data = loadCheckin();
+  const streakEl = document.getElementById("checkinStreak");
+  const btnEl = document.getElementById("dailyCheckinBtn");
+  if (streakEl) streakEl.textContent = `连续 ${data.streak || 0} 天`;
+  if (btnEl) {
+    const today = getTodayStr();
+    if (data.lastCheckin === today) {
+      btnEl.textContent = "✅ 已打卡";
+      btnEl.disabled = true;
+    }
+  }
+}
+
+document.getElementById("dailyCheckinBtn").addEventListener("click", doDailyCheckin);
+
+// 每日任务
+const DAILY_TASK_DEFS = [
+  { id: "query_dict", name: "查询1个词典", icon: "📖", target: 1, xp: 5 },
+  { id: "play_audio", name: "播放3次发音", icon: "🔊", target: 3, xp: 5 },
+  { id: "do_quiz", name: "完成1次测验", icon: "🎯", target: 1, xp: 10 },
+  { id: "learn_phrase", name: "学习2个短语", icon: "📝", target: 2, xp: 5 },
+];
+
+function loadDailyTasks() {
+  try {
+    const data = JSON.parse(localStorage.getItem(DAILY_TASKS_KEY) || "{}");
+    const today = getTodayStr();
+    if (data.date !== today) {
+      return { date: today, progress: {} };
+    }
+    return data;
+  } catch {
+    return { date: getTodayStr(), progress: {} };
+  }
+}
+
+function saveDailyTasks(data) {
+  localStorage.setItem(DAILY_TASKS_KEY, JSON.stringify(data));
+}
+
+function trackDailyTask(taskId, increment) {
+  const data = loadDailyTasks();
+  const prev = data.progress[taskId] || 0;
+  data.progress[taskId] = prev + (increment || 1);
+  saveDailyTasks(data);
+  renderDailyTasks();
+  checkAchievements();
+}
+
+function renderDailyTasks() {
+  const data = loadDailyTasks();
+  const listEl = document.getElementById("dailyTasksList");
+  if (!listEl) return;
+
+  listEl.innerHTML = DAILY_TASK_DEFS.map(task => {
+    const current = data.progress[task.id] || 0;
+    const done = current >= task.target;
+    const pct = Math.min(100, Math.round((current / task.target) * 100));
+    return `<div class="daily-task-item ${done ? "task-done" : ""}">
+      <span class="task-icon">${task.icon}</span>
+      <span class="task-name">${task.name}</span>
+      <div class="task-progress-bar"><div class="task-progress-fill" style="width:${pct}%"></div></div>
+      <span class="task-count">${Math.min(current, task.target)}/${task.target}</span>
+      ${done ? '<span class="task-check">✅</span>' : `<span class="task-xp">+${task.xp}XP</span>`}
+    </div>`;
+  }).join("");
+}
+
+// ==================== 成就系统 ====================
+const ACHIEVEMENT_KEY = "dls-ai-achievements";
+const XP_KEY = "dls-ai-xp";
+
+const LEVELS = [
+  { name: "初学者", icon: "🌱", xp: 0, desc: "刚刚开始粤语学习之旅" },
+  { name: "入门者", icon: "🌿", xp: 100, desc: "已迈出第一步" },
+  { name: "学徒", icon: "📗", xp: 300, desc: "掌握基础粤语词汇" },
+  { name: "学徒进阶", icon: "📘", xp: 600, desc: "粤语学习渐入佳境" },
+  { name: "熟练者", icon: "📙", xp: 1000, desc: "能进行基本粤语对话" },
+  { name: "精通者", icon: "📕", xp: 1500, desc: "粤语水平相当不错" },
+  { name: "专家", icon: "🎓", xp: 2500, desc: "粤语知识丰富" },
+  { name: "大师", icon: "👑", xp: 4000, desc: "粤语学习的大师" },
+];
+
+const BADGES = [
+  { id: "first_query", name: "初次查询", icon: "🔍", desc: "第一次查询词典", check: () => loadWordbook().length >= 1 },
+  { id: "word_10", name: "词汇收集者", icon: "📚", desc: "生词本收集10个词", check: () => loadWordbook().length >= 10 },
+  { id: "word_50", name: "词汇达人", icon: "📖", desc: "生词本收集50个词", check: () => loadWordbook().length >= 50 },
+  { id: "quiz_first", name: "初次测验", icon: "🎯", desc: "完成第一次测验", check: () => (JSON.parse(localStorage.getItem("dls-ai-quiz-scores") || "[]")).length >= 1 },
+  { id: "quiz_5", name: "测验达人", icon: "🏅", desc: "完成5次测验", check: () => (JSON.parse(localStorage.getItem("dls-ai-quiz-scores") || "[]")).length >= 5 },
+  { id: "quiz_perfect", name: "满分王", icon: "💯", desc: "测验获得满分", check: () => (JSON.parse(localStorage.getItem("dls-ai-quiz-scores") || "[]")).some(s => s.score === s.total) },
+  { id: "checkin_3", name: "坚持3天", icon: "🔥", desc: "连续打卡3天", check: () => (loadCheckin().streak || 0) >= 3 },
+  { id: "checkin_7", name: "一周坚持", icon: "🌟", desc: "连续打卡7天", check: () => (loadCheckin().streak || 0) >= 7 },
+  { id: "checkin_30", name: "月度坚持", icon: "💎", desc: "连续打卡30天", check: () => (loadCheckin().streak || 0) >= 30 },
+  { id: "audio_10", name: "听力练习", icon: "🔊", desc: "播放10次发音", check: () => (JSON.parse(localStorage.getItem("dls-ai-progress-stats") || "{}")).audioPlayed >= 10 },
+  { id: "fav_5", name: "收藏家", icon: "⭐", desc: "收藏5个内容", check: () => (JSON.parse(localStorage.getItem("dls-ai-favorites") || "[]")).length >= 5 },
+  { id: "master_10", name: "词汇大师", icon: "🏆", desc: "掌握10个生词", check: () => loadWordbook().filter(w => w.status === "mastered").length >= 10 },
+];
+
+function loadXP() {
+  return parseInt(localStorage.getItem(XP_KEY) || "0", 10);
+}
+
+function saveXP(xp) {
+  localStorage.setItem(XP_KEY, String(xp));
+}
+
+function addXP(amount) {
+  const xp = loadXP() + amount;
+  saveXP(xp);
+  renderAchievement();
+}
+
+function loadUnlockedBadges() {
+  try { return JSON.parse(localStorage.getItem(ACHIEVEMENT_KEY) || "[]"); } catch { return []; }
+}
+
+function saveUnlockedBadges(badges) {
+  localStorage.setItem(ACHIEVEMENT_KEY, JSON.stringify(badges));
+}
+
+function checkAchievements() {
+  const unlocked = loadUnlockedBadges();
+  let newBadge = false;
+  for (const badge of BADGES) {
+    if (unlocked.includes(badge.id)) continue;
+    if (badge.check()) {
+      unlocked.push(badge.id);
+      newBadge = true;
+      showPixelToast(`🎖️ 解锁徽章：${badge.name}！`);
+    }
+  }
+  if (newBadge) {
+    saveUnlockedBadges(unlocked);
+    renderAchievement();
+  }
+}
+
+function renderAchievement() {
+  const xp = loadXP();
+  const unlocked = loadUnlockedBadges();
+
+  let currentLevel = LEVELS[0];
+  let nextLevel = LEVELS[1];
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].xp) {
+      currentLevel = LEVELS[i];
+      nextLevel = LEVELS[i + 1] || null;
+      break;
+    }
+  }
+
+  const levelIcon = document.getElementById("levelIcon");
+  const levelName = document.getElementById("levelName");
+  const levelDesc = document.getElementById("levelDesc");
+  const levelXpFill = document.getElementById("levelXpFill");
+  const levelXpText = document.getElementById("levelXpText");
+
+  if (levelIcon) levelIcon.textContent = currentLevel.icon;
+  if (levelName) levelName.textContent = currentLevel.name;
+  if (levelDesc) levelDesc.textContent = currentLevel.desc;
+
+  if (nextLevel) {
+    const progress = ((xp - currentLevel.xp) / (nextLevel.xp - currentLevel.xp)) * 100;
+    if (levelXpFill) levelXpFill.style.width = `${Math.min(100, progress)}%`;
+    if (levelXpText) levelXpText.textContent = `${xp} / ${nextLevel.xp} XP`;
+  } else {
+    if (levelXpFill) levelXpFill.style.width = "100%";
+    if (levelXpText) levelXpText.textContent = `${xp} XP (MAX)`;
+  }
+
+  const badgeGrid = document.getElementById("badgeGrid");
+  if (badgeGrid) {
+    badgeGrid.innerHTML = BADGES.map(badge => {
+      const isUnlocked = unlocked.includes(badge.id);
+      return `<div class="badge-item ${isUnlocked ? "badge-unlocked" : "badge-locked"}">
+        <div class="badge-icon">${isUnlocked ? badge.icon : "🔒"}</div>
+        <div class="badge-name">${badge.name}</div>
+        <div class="badge-desc">${badge.desc}</div>
+      </div>`;
+    }).join("");
+  }
+}
+
+// ==================== Web Speech API 备选发音 ====================
+function speakWithWebSpeech(text) {
+  if (!window.speechSynthesis) return false;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "zh-HK";
+  utterance.rate = parseFloat(document.getElementById("pronSpeed")?.value || "1.0");
+  const voices = speechSynthesis.getVoices();
+  const zhVoice = voices.find(v => v.lang.includes("zh") && (v.lang.includes("HK") || v.lang.includes("TW")));
+  if (zhVoice) utterance.voice = zhVoice;
+  speechSynthesis.speak(utterance);
+  return true;
+}
+
+// ==================== 发音速度调节 ====================
+function getPronSpeed() {
+  return parseFloat(document.getElementById("pronSpeed")?.value || "1.0");
+}
+
+// ==================== 发音对比（录音功能） ====================
+let mediaRecorder = null;
+let recordedChunks = [];
+let recordedAudioUrl = null;
+
+document.getElementById("startRecordBtn")?.addEventListener("click", async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) recordedChunks.push(e.data);
+    };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: "audio/webm" });
+      recordedAudioUrl = URL.createObjectURL(blob);
+      document.getElementById("playRecordingBtn").style.display = "inline-block";
+      document.getElementById("compareResult").innerHTML = '<p>✅ 录音完成，点击回放对比</p>';
+      stream.getTracks().forEach(t => t.stop());
+    };
+    mediaRecorder.start();
+    document.getElementById("startRecordBtn").style.display = "none";
+    document.getElementById("stopRecordBtn").style.display = "inline-block";
+    document.getElementById("compareResult").innerHTML = '<p>🎙️ 录音中...</p>';
+  } catch (err) {
+    document.getElementById("compareResult").innerHTML = '<p>❌ 无法访问麦克风，请检查权限设置</p>';
+  }
+});
+
+document.getElementById("stopRecordBtn")?.addEventListener("click", () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    document.getElementById("stopRecordBtn").style.display = "none";
+    document.getElementById("startRecordBtn").style.display = "inline-block";
+  }
+});
+
+document.getElementById("playRecordingBtn")?.addEventListener("click", () => {
+  if (recordedAudioUrl) {
+    const audio = new Audio(recordedAudioUrl);
+    audio.play();
+  }
+});
+
+document.getElementById("playStandardBtn")?.addEventListener("click", () => {
+  const pinyin = document.getElementById("comparePinyin")?.value.trim();
+  if (!pinyin) {
+    showPixelToast("请输入粤拼");
+    return;
+  }
+  const useWebSpeech = document.getElementById("useWebSpeechTTS")?.checked;
+  if (useWebSpeech) {
+    speakWithWebSpeech(pinyin);
+  } else {
+    playYuePinyin(pinyin);
+  }
+});
+
+// ==================== 声调可视化 ====================
+function drawToneChart() {
+  const canvas = document.getElementById("toneChart");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width;
+  const H = canvas.height;
+
+  ctx.fillStyle = "#1a1a24";
+  ctx.fillRect(0, 0, W, H);
+
+  const toneData = [
+    { label: "1声", points: [[0.1, 0.2], [0.9, 0.2]], color: "#00ff88" },
+    { label: "2声", points: [[0.1, 0.6], [0.9, 0.15]], color: "#00ccff" },
+    { label: "3声", points: [[0.1, 0.4], [0.9, 0.4]], color: "#ffcc00" },
+    { label: "4声", points: [[0.1, 0.7], [0.9, 0.85]], color: "#ff6644" },
+    { label: "5声", points: [[0.1, 0.85], [0.9, 0.55]], color: "#cc66ff" },
+    { label: "6声", points: [[0.1, 0.6], [0.9, 0.75]], color: "#ff88aa" },
+  ];
+
+  const marginL = 50;
+  const marginR = 20;
+  const marginT = 30;
+  const marginB = 40;
+  const chartW = W - marginL - marginR;
+  const chartH = H - marginT - marginB;
+
+  ctx.strokeStyle = "#4a4a6a";
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = marginT + (chartH / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(marginL, y);
+    ctx.lineTo(W - marginR, y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#8888a0";
+  ctx.font = "11px monospace";
+  ctx.textAlign = "right";
+  const pitchLabels = ["高", "", "中", "", "低"];
+  for (let i = 0; i <= 4; i++) {
+    const y = marginT + (chartH / 4) * i;
+    ctx.fillText(pitchLabels[i], marginL - 8, y + 4);
+  }
+
+  toneData.forEach(tone => {
+    ctx.strokeStyle = tone.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    tone.points.forEach((p, i) => {
+      const x = marginL + p[0] * chartW;
+      const y = marginT + p[1] * chartH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    const lastPt = tone.points[tone.points.length - 1];
+    const lx = marginL + lastPt[0] * chartW + 8;
+    const ly = marginT + lastPt[1] * chartH;
+    ctx.fillStyle = tone.color;
+    ctx.font = "bold 12px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(tone.label, lx, ly + 4);
+  });
+
+  ctx.fillStyle = "#8888a0";
+  ctx.font = "10px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText("时间 →", W / 2, H - 5);
+}
+
+// ==================== 收藏分类管理 ====================
+
+function loadFavoritesWithCategory() {
+  try {
+    return JSON.parse(localStorage.getItem("dls-ai-favorites") || "[]");
+  } catch { return []; }
+}
+
+function addToFavorites(input, output, direction, category) {
+  const favorites = loadFavoritesWithCategory();
+  favorites.unshift({
+    input,
+    output,
+    direction,
+    category: category || "翻译",
+    timestamp: Date.now(),
+  });
+  if (favorites.length > 100) favorites.pop();
+  localStorage.setItem("dls-ai-favorites", JSON.stringify(favorites));
+  renderFavorites();
+}
+
+function renderFavorites() {
+  const favorites = loadFavoritesWithCategory();
+  const filtered = currentFavCategory === "all"
+    ? favorites
+    : favorites.filter(f => (f.category || "翻译") === currentFavCategory);
+
+  favoritesListEl.innerHTML = "";
+
+  if (filtered.length === 0) {
+    noFavoritesEl.style.display = "block";
+    return;
+  }
+
+  noFavoritesEl.style.display = "none";
+
+  filtered.forEach((item, index) => {
+    const realIndex = favorites.indexOf(item);
+    const el = document.createElement("div");
+    el.className = "favorites-item";
+    const catLabel = item.category || "翻译";
+    el.innerHTML = `
+      <div class="favorites-item-content">
+        <span class="fav-cat-tag">${catLabel}</span>
+        <strong>${getTranslateDirectionName(item.direction)}</strong>
+        <p style="margin: 4px 0;">${item.input}</p>
+        <p style="margin: 4px 0; color: var(--accent); font-weight: 500;">${item.output}</p>
+      </div>
+      <div class="favorites-item-actions">
+        <button class="icon-btn" title="朗读" onclick="speakText('${(item.output || item.input || "").replace(/'/g, "\\'")}')">🔊</button>
+        <button class="icon-btn" title="复制" onclick="copyText('${(item.output || item.input || "").replace(/'/g, "\\'")}')">📋</button>
+        <button class="icon-btn" title="删除" style="color: var(--delete);" onclick="deleteFavorite(${realIndex})">🗑️</button>
+      </div>
+    `;
+    favoritesListEl.appendChild(el);
+  });
+}
+
+function deleteFavorite(index) {
+  const favorites = loadFavoritesWithCategory();
+  favorites.splice(index, 1);
+  localStorage.setItem("dls-ai-favorites", JSON.stringify(favorites));
+  renderFavorites();
+}
+
+document.querySelectorAll(".fav-cat-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".fav-cat-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentFavCategory = btn.dataset.favcat;
+    renderFavorites();
+  });
+});
+
+// ==================== 自定义每日一句 ====================
+const CUSTOM_QUOTES_KEY = "dls-ai-custom-quotes";
+
+function loadCustomQuotes() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_QUOTES_KEY) || "[]"); } catch { return []; }
+}
+
+function saveCustomQuotes(quotes) {
+  localStorage.setItem(CUSTOM_QUOTES_KEY, JSON.stringify(quotes));
+}
+
+function renderCustomQuotes() {
+  const quotes = loadCustomQuotes();
+  const listEl = document.getElementById("customQuotesList");
+  if (!listEl) return;
+
+  listEl.innerHTML = quotes.map((q, i) => `
+    <div class="custom-quote-item">
+      <span>${q.yue} - ${q.zh} (${q.pinyin})</span>
+      <button class="icon-btn" onclick="removeCustomQuote(${i})">🗑️</button>
+    </div>
+  `).join("");
+}
+
+function removeCustomQuote(index) {
+  const quotes = loadCustomQuotes();
+  quotes.splice(index, 1);
+  saveCustomQuotes(quotes);
+  renderCustomQuotes();
+}
+
+document.getElementById("addCustomQuoteBtn")?.addEventListener("click", () => {
+  const yue = document.getElementById("customQuoteYue").value.trim();
+  const zh = document.getElementById("customQuoteZh").value.trim();
+  const pinyin = document.getElementById("customQuotePinyin").value.trim();
+  if (!yue || !zh) {
+    showPixelToast("请填写粤语句子和中文翻译");
+    return;
+  }
+  const quotes = loadCustomQuotes();
+  quotes.push({ yue, zh, pinyin: pinyin || "" });
+  saveCustomQuotes(quotes);
+  renderCustomQuotes();
+  document.getElementById("customQuoteYue").value = "";
+  document.getElementById("customQuoteZh").value = "";
+  document.getElementById("customQuotePinyin").value = "";
+  showPixelToast("✅ 已添加自定义句子");
+
+  const allQuotes = [...dailyQuotes, ...quotes];
+  const randomQuote = allQuotes[Math.floor(Math.random() * allQuotes.length)];
+  document.getElementById("dailyQuoteYue").textContent = randomQuote.yue;
+  document.getElementById("dailyQuoteZh").textContent = randomQuote.zh;
+  document.getElementById("dailyQuotePinyin").textContent = randomQuote.pinyin;
+});
+
+// ==================== 学习成果分享 ====================
+function generateShareText() {
+  const xp = loadXP();
+  const unlocked = loadUnlockedBadges();
+  const checkin = loadCheckin();
+  const book = loadWordbook();
+  const mastered = book.filter(w => w.status === "mastered").length;
+
+  let currentLevel = LEVELS[0];
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].xp) { currentLevel = LEVELS[i]; break; }
+  }
+
+  return `🎓 多邻省 AI 粤语学习报告\n${"=".repeat(20)}\n📊 等级：${currentLevel.icon} ${currentLevel.name}\n⭐ 经验值：${xp} XP\n📕 生词：${book.length} 个（已掌握 ${mastered} 个）\n🎖️ 徽章：${unlocked.length}/${BADGES.length}\n🔥 连续打卡：${checkin.streak || 0} 天\n📅 累计打卡：${checkin.totalDays || 0} 天\n${"=".repeat(20)}\n来一起学粤语吧！`;
+}
+
+document.getElementById("shareAchievementBtn")?.addEventListener("click", () => {
+  const text = generateShareText();
+  if (navigator.share) {
+    navigator.share({ title: "多邻省 AI 学习成就", text }).catch(() => {});
+  } else {
+    copyText(text);
+    showPixelToast("📋 成就已复制到剪贴板");
+  }
+});
+
+document.getElementById("shareFavoritesBtn")?.addEventListener("click", () => {
+  const favorites = loadFavoritesWithCategory();
+  if (favorites.length === 0) {
+    showPixelToast("暂无收藏内容");
+    return;
+  }
+  const text = "⭐ 我的粤语学习收藏\n" + favorites.slice(0, 10).map(f => `${f.input} → ${f.output}`).join("\n");
+  if (navigator.share) {
+    navigator.share({ title: "粤语学习收藏", text }).catch(() => {});
+  } else {
+    copyText(text);
+    showPixelToast("📋 收藏已复制到剪贴板");
+  }
+});
+
+// ==================== 导出学习报告（PDF） ====================
+document.getElementById("exportReportBtn")?.addEventListener("click", () => {
+  const xp = loadXP();
+  const unlocked = loadUnlockedBadges();
+  const checkin = loadCheckin();
+  const book = loadWordbook();
+  const quizScores = JSON.parse(localStorage.getItem("dls-ai-quiz-scores") || "[]");
+  const stats = JSON.parse(localStorage.getItem("dls-ai-progress-stats") || "{}");
+  const mastered = book.filter(w => w.status === "mastered").length;
+  const learning = book.filter(w => w.status === "learning").length;
+
+  let currentLevel = LEVELS[0];
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].xp) { currentLevel = LEVELS[i]; break; }
+  }
+
+  const reportHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>粤语学习报告</title>
+<style>
+body{font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px;color:#333}
+h1{color:#2d2d3a;border-bottom:3px solid #00ff88;padding-bottom:10px}
+h2{color:#4a4a6a;margin-top:30px}
+.section{background:#f5f5f5;padding:15px;margin:10px 0;border-radius:8px}
+.stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #ddd}
+.stat:last-child{border:none}
+.badge{display:inline-block;padding:4px 12px;margin:4px;border-radius:20px;background:#e0e0e0;font-size:14px}
+.badge.unlocked{background:#00ff88;color:#000}
+.badge.locked{background:#ddd;color:#999}
+.footer{text-align:center;margin-top:40px;color:#888;font-size:12px}
+</style></head><body>
+<h1>🎓 多邻省 AI 粤语学习报告</h1>
+<p>生成时间：${new Date().toLocaleString("zh-CN")}</p>
+
+<h2>📊 等级与经验</h2>
+<div class="section">
+<div class="stat"><span>当前等级</span><strong>${currentLevel.icon} ${currentLevel.name}</strong></div>
+<div class="stat"><span>经验值</span><strong>${xp} XP</strong></div>
+<div class="stat"><span>等级描述</span><strong>${currentLevel.desc}</strong></div>
+</div>
+
+<h2>📕 生词统计</h2>
+<div class="section">
+<div class="stat"><span>总生词数</span><strong>${book.length}</strong></div>
+<div class="stat"><span>已掌握</span><strong>${mastered}</strong></div>
+<div class="stat"><span>学习中</span><strong>${learning}</strong></div>
+<div class="stat"><span>新词</span><strong>${book.filter(w => w.status === "new").length}</strong></div>
+</div>
+
+<h2>🎯 测验记录</h2>
+<div class="section">
+<div class="stat"><span>完成测验</span><strong>${quizScores.length} 次</strong></div>
+<div class="stat"><span>平均得分</span><strong>${quizScores.length > 0 ? Math.round(quizScores.reduce((a, s) => a + (s.score / s.total) * 100, 0) / quizScores.length) : 0}%</strong></div>
+</div>
+
+<h2>📅 打卡记录</h2>
+<div class="section">
+<div class="stat"><span>连续打卡</span><strong>${checkin.streak || 0} 天</strong></div>
+<div class="stat"><span>累计打卡</span><strong>${checkin.totalDays || 0} 天</strong></div>
+</div>
+
+<h2>📊 学习统计</h2>
+<div class="section">
+<div class="stat"><span>已学短语</span><strong>${stats.phrasesLearned || 0}</strong></div>
+<div class="stat"><span>播放发音</span><strong>${stats.audioPlayed || 0} 次</strong></div>
+</div>
+
+<h2>🎖️ 徽章</h2>
+<div class="section">
+${BADGES.map(b => `<span class="badge ${unlocked.includes(b.id) ? "unlocked" : "locked"}">${b.icon} ${b.name}</span>`).join("")}
+</div>
+
+<div class="footer">多邻省 AI 学习助手 · 学习报告</div>
+</body></html>`;
+
+  const blob = new Blob([reportHtml], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `粤语学习报告_${getTodayStr()}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showPixelToast("📄 报告已导出");
+});
+
+// ==================== 数据导入导出 ====================
+document.getElementById("exportAllDataBtn")?.addEventListener("click", () => {
+  const allKeys = [
+    "dls-ai-config", "dls-ai-favorites", "dls-ai-translate-history",
+    "dls-ai-chat-history", "dls-ai-quiz-scores", "dls-ai-progress-stats",
+    WORDBOOK_KEY, CHECKIN_KEY, DAILY_TASKS_KEY, ACHIEVEMENT_KEY, XP_KEY, CUSTOM_QUOTES_KEY,
+  ];
+  const data = {};
+  for (const key of allKeys) {
+    const val = localStorage.getItem(key);
+    if (val) data[key] = val;
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `dls-ai-backup_${getTodayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showPixelToast("📤 数据已导出");
+});
+
+document.getElementById("importDataBtn")?.addEventListener("click", () => {
+  document.getElementById("importDataFile")?.click();
+});
+
+document.getElementById("importDataFile")?.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      for (const [key, value] of Object.entries(data)) {
+        localStorage.setItem(key, value);
+      }
+      showPixelToast("📥 数据导入成功，请刷新页面");
+      setTimeout(() => location.reload(), 1500);
+    } catch {
+      showPixelToast("❌ 导入失败，文件格式不正确");
+    }
+  };
+  reader.readAsText(file);
+});
+
+// ==================== 增强已有功能 ====================
+
+// 增强：查询词典时自动添加到生词本
+const originalSearchYueWord = searchYueWord;
+searchYueWord = async function() {
+  const word = yueDictSearchEl.value.trim();
+  if (!word) { alert("请输入要查询的词汇"); return; }
+  try { await loadYueDictionary(); } catch { alert("粤语词典加载失败"); return; }
+  const results = searchYueDictionaryEntries(word, { limit: 200 });
+  if (results.length > 0) {
+    renderYueDictResult(results);
+    results.slice(0, 3).forEach(r => {
+      addToWordbook(r.simp, r.trad, r.pinyin, r.explanation);
+    });
+    trackDailyTask("query_dict", 1);
+    addXP(3);
+  } else {
+    renderYueDictResult([]);
+    alert(`未找到词汇 "${word}" 的相关信息`);
+  }
+};
+
+// 增强：播放发音时跟踪任务
+const originalTrackAudioPlayed = trackAudioPlayed;
+trackAudioPlayed = function() {
+  originalTrackAudioPlayed();
+  trackDailyTask("play_audio", 1);
+};
+
+// 增强：学习短语时跟踪任务
+const originalTrackPhraseLearned = trackPhraseLearned;
+trackPhraseLearned = function() {
+  originalTrackPhraseLearned();
+  trackDailyTask("learn_phrase", 1);
+};
+
+// 增强：保存测验分数时跟踪任务
+const originalSaveQuizScore = saveQuizScore;
+saveQuizScore = function(score, total, difficulty) {
+  originalSaveQuizScore(score, total, difficulty);
+  trackDailyTask("do_quiz", 1);
+  addXP(score * 2);
+  checkAchievements();
+};
+
+// 增强：每日一句下一句包含自定义句子
+document.getElementById("dailyNextQuoteBtn").removeEventListener("click", () => {});
+document.getElementById("dailyNextQuoteBtn").addEventListener("click", () => {
+  const customQuotes = loadCustomQuotes();
+  const allQuotes = [...dailyQuotes, ...customQuotes];
+  const randomQuote = allQuotes[Math.floor(Math.random() * allQuotes.length)];
+  document.getElementById("dailyQuoteYue").textContent = randomQuote.yue;
+  document.getElementById("dailyQuoteZh").textContent = randomQuote.zh;
+  document.getElementById("dailyQuotePinyin").textContent = randomQuote.pinyin;
+});
+
+// 增强：收藏时使用分类
+const originalAddToFavorites = addToFavorites;
+addToFavorites = function(input, output, direction, category) {
+  const favorites = loadFavoritesWithCategory();
+  favorites.unshift({
+    input,
+    output,
+    direction: direction || "",
+    category: category || "翻译",
+    timestamp: Date.now(),
+  });
+  if (favorites.length > 100) favorites.pop();
+  localStorage.setItem("dls-ai-favorites", JSON.stringify(favorites));
+  renderFavorites();
+};
+
+// 增强：收藏每日一句时使用分类
+document.getElementById("dailyFavoriteQuoteBtn").removeEventListener("click", () => {});
+document.getElementById("dailyFavoriteQuoteBtn").addEventListener("click", () => {
+  const yue = document.getElementById("dailyQuoteYue").textContent;
+  const zh = document.getElementById("dailyQuoteZh").textContent;
+  if (yue && yue !== "加载中...") {
+    addToFavorites(yue, zh, "", "每日一句");
+    showPixelToast("⭐ 已添加到收藏夹");
+  }
+});
+
+// 增强：短语收藏使用分类
+const originalRenderPhraseList = renderPhraseList;
+renderPhraseList = function(category) {
+  const phraseList = document.getElementById("phraseList");
+  const phrases = commonPhrases[category] || [];
+
+  phraseList.innerHTML = phrases.map((phrase) => `
+    <div class="phrase-item">
+      <div class="phrase-content">
+        <div class="yue">${phrase.yue}</div>
+        <div class="zh">${phrase.zh}</div>
+        <div class="pinyin">${phrase.pinyin}</div>
+      </div>
+      <div class="phrase-actions">
+        <button class="icon-btn phrase-play-btn" data-pinyin="${phrase.pinyin}" title="播放发音">🔊</button>
+        <button class="icon-btn phrase-fav-btn" data-yue="${phrase.yue}" data-zh="${phrase.zh}" title="收藏">⭐</button>
+      </div>
+    </div>
+  `).join("");
+
+  phraseList.querySelectorAll(".phrase-play-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      playYuePinyin(btn.dataset.pinyin);
+      trackAudioPlayed();
+      trackPhraseLearned();
+    });
+  });
+
+  phraseList.querySelectorAll(".phrase-fav-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      addToFavorites(btn.dataset.yue, btn.dataset.zh, "", "短语");
+      showPixelToast("⭐ 已添加到收藏夹");
+    });
+  });
+};
+
+// 增强：speakText 支持 Web Speech API 备选
+const originalSpeakText = speakText;
+speakText = async function(text) {
+  if (!text) return;
+  const useWebSpeech = document.getElementById("useWebSpeechTTS")?.checked;
+  if (useWebSpeech) {
+    if (speakWithWebSpeech(text)) return;
+  }
+  await originalSpeakText(text);
+};
+
+// 增强：playYuePinyin 支持速度调节
+const originalPlayYuePinyin = playYuePinyin;
+playYuePinyin = async function(pinyin, resolvedPath) {
+  const speed = getPronSpeed();
+  if (speed !== 1.0 && window.speechSynthesis) {
+    const useWebSpeech = document.getElementById("useWebSpeechTTS")?.checked;
+    if (useWebSpeech) {
+      const utterance = new SpeechSynthesisUtterance(pinyin);
+      utterance.lang = "zh-HK";
+      utterance.rate = speed;
+      speechSynthesis.speak(utterance);
+      return;
+    }
+  }
+  await originalPlayYuePinyin(pinyin, resolvedPath);
+};
+
+// ==================== 初始化新功能 ====================
+renderWordbook();
+updateCheckinUI();
+renderDailyTasks();
+renderAchievement();
+renderCustomQuotes();
+drawToneChart();
+checkAchievements();
+
+if (window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = () => {};
+}
