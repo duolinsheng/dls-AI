@@ -104,6 +104,8 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
+  console.log("Duolinsheng ————  A lightweight local server for learn dialects");
+  console.log("========================================");
   console.log(`Server running at http://127.0.0.1:${PORT}/`);
   console.log(`Web root: ${WEB_ROOT}`);
   console.log(`TTS root: ${TTS_ROOT}`);
