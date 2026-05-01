@@ -529,8 +529,8 @@
               <input
                 id="baseUrl"
                 type="text"
-                value="http://localhost:11434"
-                placeholder="http://localhost:11434"
+                value="/api"
+                placeholder="/api 或 http://127.0.0.1:11434"
               />
             </label>
             <label>
@@ -554,7 +554,7 @@
             </label>
           </div>
           <button id="saveConfig" class="btn">保存配置</button>
-          <small>说明：默认使用本地 Ollama；配置只保存在当前浏览器本地存储中。</small>
+          <small>说明：先运行 <code>node server.js</code> 时用 <code>/api</code>；直连 Ollama 用 <code>http://127.0.0.1:11434</code>。配置仅存于本机浏览器。</small>
 
           <div class="model-guide">
             <h3>📦 模型下载引导</h3>

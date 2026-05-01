@@ -197,7 +197,7 @@ function getConfig() {
     const parsed = JSON.parse(raw);
     let baseUrl = parsed.baseUrl || DEFAULT_BASE_URL;
     if (baseUrl.includes("localhost")) {
-      baseUrl = baseUrl.replace("localhost", "127.0.0.1");
+      baseUrl = baseUrl.replace(/localhost/gi, "127.0.0.1");
     }
     return {
       apiKey: parsed.apiKey || "",
@@ -237,16 +237,17 @@ function isLikelyOpenAIEndpoint(baseUrl) {
 }
 
 function buildRequestUrl(baseUrl) {
-  if (/api\.openai\.com$/i.test(baseUrl)) {
-    return `${baseUrl}/v1/chat/completions`;
+  const b = baseUrl.replace(/\/+$/, "");
+  if (/api\.openai\.com$/i.test(b)) {
+    return `${b}/v1/chat/completions`;
   }
-  if (/\/v1$/i.test(baseUrl)) {
-    return `${baseUrl}/chat/completions`;
+  if (/\/v1$/i.test(b)) {
+    return `${b}/chat/completions`;
   }
-  if (baseUrl === "/api") {
-    return "/api/chat";
+  if (b === "/api" || /\/api$/i.test(b)) {
+    return b === "/api" ? "/api/chat" : `${b}/chat`;
   }
-  return `${baseUrl}/api/chat`;
+  return `${b}/api/chat`;
 }
 
 function getErrorMessage(err) {
@@ -267,6 +268,12 @@ function getFriendlyError(err) {
   }
   if (msg.includes("404")) {
     return "🔍 模型未找到。建议：\n1. 确认模型名称拼写正确\n2. 终端运行 ollama list 查看已安装模型\n3. 运行 ollama pull 模型名 下载模型";
+  }
+  if (msg.includes("405")) {
+    return "🚫 接口不允许当前请求方式（405）。常见原因：\n1. Base URL 写成了网站首页或文档地址，应写 API 根地址\n2. Ollama 直连填 http://127.0.0.1:11434；若已带 /api 代理根（如 http://127.0.0.1:8080/api）勿再重复写 /api\n3. 用本仓库自带服务时可填 /api 或 http://127.0.0.1:8080，并先运行 node server.js\n4. OpenAI 兼容网关请填到 …/v1（如 https://api.openai.com/v1）\n5. 若走 Nginx 反代，确认该 location 允许 POST 且路径与 /api/chat 或 /v1/chat/completions 一致";
+  }
+  if (msg.includes("401")) {
+    return "🔑 未授权（401）。请检查 API Key 是否正确、是否已写入设置并保存；部分网关还需确认 Key 对应的服务商与 Base URL 一致";
   }
   if (msg.includes("返回为空")) {
     return "📭 模型返回为空。建议：\n1. 重启 Ollama 服务\n2. 换一个模型试试";
@@ -348,6 +355,24 @@ async function callChatAPI(messages) {
     headers.Authorization = `Bearer ${cfg.apiKey}`;
   }
 
+  const model = cfg.model || DEFAULT_MODEL;
+  const body = useOpenAIStyle
+    ? JSON.stringify({
+        model,
+        messages,
+        stream: false,
+        temperature: 0.3,
+      })
+    : JSON.stringify({
+        model,
+        messages,
+        stream: false,
+        keep_alive: -1,
+        options: {
+          temperature: 0.3,
+        },
+      });
+
   let res;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -355,19 +380,7 @@ async function callChatAPI(messages) {
     res = await fetch(url, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        model: cfg.model || DEFAULT_MODEL,
-        messages,
-        stream: false,
-        keep_alive: -1,
-        ...(useOpenAIStyle
-          ? { temperature: 0.3 }
-          : {
-              options: {
-                temperature: 0.3,
-              },
-            }),
-      }),
+      body,
       signal: controller.signal,
     });
   } catch (error) {
