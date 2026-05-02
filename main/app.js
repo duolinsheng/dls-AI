@@ -36,29 +36,34 @@ const yueDictResultEl = document.getElementById("yueDictResult");
 const noYueDictResultEl = document.getElementById("noYueDictResult");
 let currentFavCategory = "all";
 
+const navPageEls = Array.from(document.querySelectorAll(".page"));
+const navBtnEls = Array.from(document.querySelectorAll(".nav-btn"));
+const pagesByName = new Map(
+  navPageEls.map((el) => [el.id.replace(/^page-/, ""), el]),
+);
+
+let currentPageName = "home";
+let toneChartDrawn = false;
+
+function ensureToneChart() {
+  if (toneChartDrawn) return;
+  drawToneChart();
+  toneChartDrawn = true;
+}
+
 // 页面导航功能
 function navigateTo(pageName) {
-  // 隐藏所有页面
-  const pages = document.querySelectorAll('.page');
-  pages.forEach(page => page.classList.remove('active'));
-  
-  // 显示目标页面
-  const targetPage = document.getElementById(`page-${pageName}`);
-  if (targetPage) {
-    targetPage.classList.add('active');
+  currentPageName = pageName;
+  for (const page of navPageEls) page.classList.remove("active");
+  const targetPage = pagesByName.get(pageName);
+  if (targetPage) targetPage.classList.add("active");
+
+  for (const btn of navBtnEls) {
+    btn.classList.toggle("active", btn.dataset.page === pageName);
   }
-  
-  // 更新导航按钮状态
-  const navButtons = document.querySelectorAll('.nav-btn');
-  navButtons.forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.dataset.page === pageName) {
-      btn.classList.add('active');
-    }
-  });
-  
-  // 保存当前页面到 localStorage
-  localStorage.setItem('dls-ai-current-page', pageName);
+
+  localStorage.setItem("dls-ai-current-page", pageName);
+  if (pageName === "tones") ensureToneChart();
 }
 
 // 初始化导航
@@ -128,6 +133,10 @@ const yueAudioResolveCache = new Map();
 const yueWordPinyinMap = new Map();
 const yueScriptCanonicalMap = new Map();
 const yueSearchNormalizeCache = new Map();
+/** 单字 → 词典条目（用于 RAG / findYueWords 单字） */
+const yueDictEntriesByChar = new Map();
+/** 整词（≥2 字）→ 词典条目 */
+const yueDictEntriesByWord = new Map();
 let yueMaxWordLength = 1;
 let webAudioContext = null;
 let webAudioPlaybackToken = 0;
@@ -561,6 +570,31 @@ function normalizeYueSearchText(text) {
   return normalized;
 }
 
+function rebuildYueDictRagLookupMaps() {
+  yueDictEntriesByChar.clear();
+  yueDictEntriesByWord.clear();
+  for (const entry of yueDictionary) {
+    const simp = (entry.simp || "").trim();
+    const trad = (entry.trad || "").trim();
+
+    const addCharKey = (ch) => {
+      if (!ch || [...ch].length !== 1) return;
+      if (!yueDictEntriesByChar.has(ch)) yueDictEntriesByChar.set(ch, []);
+      yueDictEntriesByChar.get(ch).push(entry);
+    };
+    const addWordKey = (w) => {
+      if (!w || [...w].length < 2) return;
+      if (!yueDictEntriesByWord.has(w)) yueDictEntriesByWord.set(w, []);
+      yueDictEntriesByWord.get(w).push(entry);
+    };
+
+    if (simp.length === 1) addCharKey(simp);
+    if (trad.length === 1 && trad !== simp) addCharKey(trad);
+    addWordKey(simp);
+    if (trad !== simp) addWordKey(trad);
+  }
+}
+
 function loadYueDictionary() {
   if (yueDictionaryLoaded) return Promise.resolve();
   if (yueDictionaryLoadPromise) return yueDictionaryLoadPromise;
@@ -647,6 +681,7 @@ function loadYueDictionary() {
       }
 
       rebuildYueScriptCanonicalMap();
+      rebuildYueDictRagLookupMaps();
       yueDictionaryLoaded = true;
       console.log(`粤语词典加载完成，共 ${yueDictionary.length} 条记录（yyzd + word_list）`);
     })
@@ -662,7 +697,10 @@ function loadYueDictionary() {
 
 function findYueWords(word) {
   if (!yueDictionaryLoaded) return [];
-  return yueDictionary.filter((item) => item.simp === word || item.trad === word);
+  const w = (word || "").trim();
+  if (!w) return [];
+  if ([...w].length >= 2) return yueDictEntriesByWord.get(w) || [];
+  return yueDictEntriesByChar.get(w) || [];
 }
 
 function searchYueDictionaryEntries(query, options = {}) {
@@ -1463,6 +1501,11 @@ sendChatBtn.addEventListener("click", async () => {
   renderMessage("user", input);
   chatInputEl.value = "";
 
+  try {
+    await loadYueDictionary();
+  } catch {
+    /* 词典失败时上下文字段为空 */
+  }
   const dictContext = extractYueDictContext(input);
   const enhancedInput = dictContext ? `${input}\n\n[粤语词典参考信息]\n${dictContext}` : input;
   
@@ -1496,7 +1539,7 @@ function extractYueDictContext(text) {
   const matchedEntries = [];
 
   for (const char of chars) {
-    const found = yueDictionary.filter((entry) => entry.simp === char || entry.trad === char);
+    const found = yueDictEntriesByChar.get(char) || [];
     for (const entry of found.slice(0, 2)) {
       const key = `${entry.simp}|${entry.pinyin}`;
       if (!seen.has(key)) {
@@ -1509,7 +1552,7 @@ function extractYueDictContext(text) {
   const words = text.replace(/[^\u4e00-\u9fff]+/g, " ").trim().split(/\s+/);
   for (const word of words) {
     if (word.length < 2) continue;
-    const found = yueDictionary.filter((entry) => entry.simp === word || entry.trad === word);
+    const found = yueDictEntriesByWord.get(word) || [];
     for (const entry of found.slice(0, 1)) {
       const key = `${entry.simp}|${entry.pinyin}`;
       if (!seen.has(key)) {
@@ -1537,7 +1580,7 @@ function extractTranslateRAG(input, direction) {
   const matchedEntries = [];
 
   for (const char of chars) {
-    const found = yueDictionary.filter((entry) => entry.simp === char || entry.trad === char);
+    const found = yueDictEntriesByChar.get(char) || [];
     for (const entry of found.slice(0, 2)) {
       const key = `${entry.simp}|${entry.pinyin}`;
       if (!seen.has(key)) {
@@ -1570,6 +1613,11 @@ translateBtn.addEventListener("click", async () => {
   translateBtn.disabled = true;
   const direction = directionEl.value;
 
+  try {
+    await loadYueDictionary();
+  } catch {
+    /* 无词典则不加 RAG */
+  }
   const systemPrompt = getTranslatePrompt(direction);
   const ragContext = extractTranslateRAG(input, direction);
   const userContent = ragContext ? `${input}\n\n[${ragContext}]` : input;
@@ -1796,7 +1844,12 @@ function renderDailyQuote() {
   document.getElementById("dailyQuotePinyin").textContent = quote.pinyin;
 }
 
-function playDailyQuote() {
+async function playDailyQuote() {
+  try {
+    await loadYueDictionary();
+  } catch {
+    /* findYueWords 在无词典时为空 */
+  }
   const quote = getDailyQuote();
   const words = quote.yue.replace(/[！？，。、]/g, "").split("");
   words.forEach((word, index) => {
@@ -1958,6 +2011,16 @@ async function generateAIQuiz() {
   aiQuizBtn.textContent = "AI 出题中...";
   aiQuizBtn.disabled = true;
 
+  try {
+    await loadYueDictionary();
+  } catch (err) {
+    console.error(err);
+    aiQuizBtn.textContent = originalText;
+    aiQuizBtn.disabled = false;
+    alert("粤语词典加载失败，无法 AI 出题，请稍后重试或使用本地题库");
+    return;
+  }
+
   const dictEntries = getRandomDictEntries(20);
   const dictContext = dictEntries.map(entry => {
     const example = entry.example ? `（示例：${entry.example}）` : "";
@@ -2036,22 +2099,66 @@ ${dictContext}
   }
 }
 
+const PROGRESS_STATS_KEY = "dls-ai-progress-stats";
+let progressStatsCache = null;
+let progressStatsDirty = false;
+let progressStatsFlushTimer = null;
+
+function getProgressStats() {
+  if (progressStatsCache === null) {
+    try {
+      progressStatsCache = JSON.parse(localStorage.getItem(PROGRESS_STATS_KEY) || "{}");
+    } catch {
+      progressStatsCache = {};
+    }
+  }
+  return progressStatsCache;
+}
+
+function flushProgressStatsNow() {
+  if (!progressStatsDirty || progressStatsCache === null) return;
+  try {
+    localStorage.setItem(PROGRESS_STATS_KEY, JSON.stringify(progressStatsCache));
+  } catch {
+    /* quota */
+  }
+  progressStatsDirty = false;
+  if (progressStatsFlushTimer) {
+    clearTimeout(progressStatsFlushTimer);
+    progressStatsFlushTimer = null;
+  }
+}
+
+function scheduleFlushProgressStats() {
+  progressStatsDirty = true;
+  if (progressStatsFlushTimer) return;
+  progressStatsFlushTimer = setTimeout(() => {
+    progressStatsFlushTimer = null;
+    flushProgressStatsNow();
+  }, 250);
+}
+
+window.addEventListener("beforeunload", flushProgressStatsNow);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flushProgressStatsNow();
+});
+
 function trackAudioPlayed() {
-  const stats = JSON.parse(localStorage.getItem("dls-ai-progress-stats") || "{}");
+  const stats = getProgressStats();
   stats.audioPlayed = (stats.audioPlayed || 0) + 1;
-  localStorage.setItem("dls-ai-progress-stats", JSON.stringify(stats));
+  scheduleFlushProgressStats();
   updateProgressStats();
 }
 
 function trackPhraseLearned() {
-  const stats = JSON.parse(localStorage.getItem("dls-ai-progress-stats") || "{}");
+  const stats = getProgressStats();
   stats.phrasesLearned = (stats.phrasesLearned || 0) + 1;
-  localStorage.setItem("dls-ai-progress-stats", JSON.stringify(stats));
+  scheduleFlushProgressStats();
   updateProgressStats();
 }
 
 function updateProgressStats() {
-  const stats = JSON.parse(localStorage.getItem("dls-ai-progress-stats") || "{}");
+  const stats = getProgressStats();
   const quizScores = JSON.parse(localStorage.getItem("dls-ai-quiz-scores") || "[]");
   const favorites = JSON.parse(localStorage.getItem("dls-ai-favorites") || "[]");
   
@@ -2251,19 +2358,14 @@ loadConfigToForm();
 loadConversation();
 renderFavorites();
 renderTranslateHistory();
-loadYueDictionary().catch(() => {
-});
 
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey) {
     switch (e.key) {
       case "Enter":
         e.preventDefault();
-        if (document.getElementById("page-chat").classList.contains("active")) {
-          sendChatBtn.click();
-        } else if (document.getElementById("page-translate").classList.contains("active")) {
-          translateBtn.click();
-        }
+        if (currentPageName === "chat") sendChatBtn.click();
+        else if (currentPageName === "translate") translateBtn.click();
         break;
       case "1":
         e.preventDefault();
@@ -2608,7 +2710,7 @@ const BADGES = [
   { id: "checkin_3", name: "坚持3天", icon: "🔥", desc: "连续打卡3天", check: () => (loadCheckin().streak || 0) >= 3 },
   { id: "checkin_7", name: "一周坚持", icon: "🌟", desc: "连续打卡7天", check: () => (loadCheckin().streak || 0) >= 7 },
   { id: "checkin_30", name: "月度坚持", icon: "💎", desc: "连续打卡30天", check: () => (loadCheckin().streak || 0) >= 30 },
-  { id: "audio_10", name: "听力练习", icon: "🔊", desc: "播放10次发音", check: () => (JSON.parse(localStorage.getItem("dls-ai-progress-stats") || "{}")).audioPlayed >= 10 },
+  { id: "audio_10", name: "听力练习", icon: "🔊", desc: "播放10次发音", check: () => (getProgressStats().audioPlayed || 0) >= 10 },
   { id: "fav_5", name: "收藏家", icon: "⭐", desc: "收藏5个内容", check: () => (JSON.parse(localStorage.getItem("dls-ai-favorites") || "[]")).length >= 5 },
   { id: "master_10", name: "词汇大师", icon: "🏆", desc: "掌握10个生词", check: () => loadWordbook().filter(w => w.status === "mastered").length >= 10 },
 ];
@@ -3025,7 +3127,8 @@ document.getElementById("exportReportBtn")?.addEventListener("click", () => {
   const checkin = loadCheckin();
   const book = loadWordbook();
   const quizScores = JSON.parse(localStorage.getItem("dls-ai-quiz-scores") || "[]");
-  const stats = JSON.parse(localStorage.getItem("dls-ai-progress-stats") || "{}");
+  const stats = getProgressStats();
+  flushProgressStatsNow();
   const mastered = book.filter(w => w.status === "mastered").length;
   const learning = book.filter(w => w.status === "learning").length;
 
@@ -3299,7 +3402,6 @@ updateCheckinUI();
 renderDailyTasks();
 renderAchievement();
 renderCustomQuotes();
-drawToneChart();
 checkAchievements();
 
 if (window.speechSynthesis) {
