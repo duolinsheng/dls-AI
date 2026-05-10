@@ -37,6 +37,11 @@ npm start
 - `Base URL`（默认：`http://localhost:11434`）
 - `Model`（默认：`qwen3.5:4b`）
 
+DeepSeek 可选择页面里的“连接方式 -> DeepSeek”，会自动填入：
+
+- `Base URL`: `https://api.deepseek.com/v1`
+- `Model`: `deepseek-chat`
+
 保存后会写入浏览器 `localStorage`。
 
 如果不填 API Key：

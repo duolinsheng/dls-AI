@@ -8,6 +8,7 @@ const apiKeyEl = document.getElementById("apiKey");
 const baseUrlEl = document.getElementById("baseUrl");
 const modelEl = document.getElementById("model");
 const modelPresetEl = document.getElementById("modelPreset");
+const providerPresetEl = document.getElementById("providerPreset");
 const saveConfigBtn = document.getElementById("saveConfig");
 
 const chatInputEl = document.getElementById("chatInput");
@@ -35,6 +36,21 @@ const yueDictSearchBtn = document.getElementById("yueDictSearchBtn");
 const yueDictResultEl = document.getElementById("yueDictResult");
 const noYueDictResultEl = document.getElementById("noYueDictResult");
 let currentFavCategory = "all";
+
+const PROVIDER_PRESETS = {
+  ollama: {
+    baseUrl: DEFAULT_BASE_URL,
+    model: DEFAULT_MODEL,
+  },
+  deepseek: {
+    baseUrl: "https://api.deepseek.com/v1",
+    model: "deepseek-chat",
+  },
+  openai: {
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o-mini",
+  },
+};
 
 const navPageEls = Array.from(document.querySelectorAll(".page"));
 const navBtnEls = Array.from(document.querySelectorAll(".nav-btn"));
@@ -239,16 +255,32 @@ function loadConfigToForm() {
   apiKeyEl.value = cfg.apiKey || "";
   baseUrlEl.value = cfg.baseUrl || DEFAULT_BASE_URL;
   modelEl.value = cfg.model || DEFAULT_MODEL;
+  providerPresetEl.value = cfg.provider || inferProvider(cfg.baseUrl, cfg.model);
+  updateModelGuide();
+}
+
+function inferProvider(baseUrl = "", model = "") {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+  if (/api\.deepseek\.com/i.test(normalizedBaseUrl) || /^deepseek-/i.test(model)) {
+    return "deepseek";
+  }
+  if (/api\.openai\.com/i.test(normalizedBaseUrl)) {
+    return "openai";
+  }
+  return "ollama";
 }
 
 function isLikelyOpenAIEndpoint(baseUrl) {
-  return /\/v1$/i.test(baseUrl) || /api\.openai\.com$/i.test(baseUrl);
+  return /\/v1$/i.test(baseUrl) || /api\.(openai|deepseek)\.com$/i.test(baseUrl);
 }
 
 function buildRequestUrl(baseUrl) {
   const b = baseUrl.replace(/\/+$/, "");
   if (/api\.openai\.com$/i.test(b)) {
     return `${b}/v1/chat/completions`;
+  }
+  if (/api\.deepseek\.com$/i.test(b)) {
+    return `${b}/chat/completions`;
   }
   if (/\/v1$/i.test(b)) {
     return `${b}/chat/completions`;
@@ -276,13 +308,13 @@ function getFriendlyError(err) {
     return "⚠️ 模型内部错误。建议：\n1. 换一个更小的模型（内存不足时常见）\n2. 重启 Ollama 服务\n3. 检查模型是否完整下载";
   }
   if (msg.includes("404")) {
-    return "🔍 模型未找到。建议：\n1. 确认模型名称拼写正确\n2. 终端运行 ollama list 查看已安装模型\n3. 运行 ollama pull 模型名 下载模型";
+    return "🔍 模型未找到。建议：\n1. 确认模型名称拼写正确\n2. 若使用 Ollama，终端运行 ollama list 查看已安装模型，并运行 ollama pull 模型名 下载模型\n3. 若使用 DeepSeek，常用模型为 deepseek-chat 或 deepseek-reasoner";
   }
   if (msg.includes("405")) {
     return "🚫 接口不允许当前请求方式（405）。常见原因：\n1. Base URL 写成了网站首页或文档地址，应写 API 根地址\n2. Ollama 直连填 http://127.0.0.1:11434；若已带 /api 代理根（如 http://127.0.0.1:8080/api）勿再重复写 /api\n3. 用本仓库自带服务时可填 /api 或 http://127.0.0.1:8080，并先运行 node server.js\n4. OpenAI 兼容网关请填到 …/v1（如 https://api.openai.com/v1）\n5. 若走 Nginx 反代，确认该 location 允许 POST 且路径与 /api/chat 或 /v1/chat/completions 一致";
   }
   if (msg.includes("401")) {
-    return "🔑 未授权（401）。请检查 API Key 是否正确、是否已写入设置并保存；部分网关还需确认 Key 对应的服务商与 Base URL 一致";
+    return "🔑 未授权（401）。请检查 API Key 是否正确、是否已写入设置并保存；使用 DeepSeek 时请确认 Base URL 为 https://api.deepseek.com/v1，且 Key 来自 DeepSeek 平台";
   }
   if (msg.includes("返回为空")) {
     return "📭 模型返回为空。建议：\n1. 重启 Ollama 服务\n2. 换一个模型试试";
@@ -1427,6 +1459,7 @@ async function searchYueWord() {
 
 saveConfigBtn.addEventListener("click", () => {
   const cfg = {
+    provider: providerPresetEl.value || inferProvider(baseUrlEl.value.trim(), modelEl.value.trim()),
     apiKey: apiKeyEl.value.trim(),
     baseUrl: baseUrlEl.value.trim() || DEFAULT_BASE_URL,
     model: modelEl.value.trim() || DEFAULT_MODEL,
@@ -1435,20 +1468,64 @@ saveConfigBtn.addEventListener("click", () => {
   showPixelToast("✅ 配置已保存");
 });
 
+providerPresetEl.addEventListener("change", () => {
+  const preset = PROVIDER_PRESETS[providerPresetEl.value];
+  if (!preset) return;
+  baseUrlEl.value = preset.baseUrl;
+  modelEl.value = preset.model;
+  updateModelGuide();
+});
+
 modelPresetEl.addEventListener("change", () => {
   const val = modelPresetEl.value;
   if (val) {
     modelEl.value = val;
-    const cmdEl = document.getElementById("modelDownloadCmd");
-    if (cmdEl) cmdEl.textContent = `ollama pull ${val}`;
+    const provider = inferProvider(baseUrlEl.value.trim(), val);
+    providerPresetEl.value = provider;
+    if (provider === "deepseek") {
+      baseUrlEl.value = PROVIDER_PRESETS.deepseek.baseUrl;
+    }
+    updateModelGuide();
   }
 });
 
 modelEl.addEventListener("input", () => {
-  const val = modelEl.value.trim();
-  const cmdEl = document.getElementById("modelDownloadCmd");
-  if (cmdEl && val) cmdEl.textContent = `ollama pull ${val}`;
+  providerPresetEl.value = inferProvider(baseUrlEl.value.trim(), modelEl.value.trim());
+  updateModelGuide();
 });
+
+baseUrlEl.addEventListener("input", () => {
+  providerPresetEl.value = inferProvider(baseUrlEl.value.trim(), modelEl.value.trim());
+  updateModelGuide();
+});
+
+function updateModelGuide() {
+  const provider = providerPresetEl.value || inferProvider(baseUrlEl.value.trim(), modelEl.value.trim());
+  const model = modelEl.value.trim() || DEFAULT_MODEL;
+  const titleEl = document.getElementById("modelGuideTitle");
+  const hintEl = document.getElementById("modelGuideHint");
+  const cmdEl = document.getElementById("modelDownloadCmd");
+
+  if (!titleEl || !hintEl || !cmdEl) return;
+
+  if (provider === "deepseek") {
+    titleEl.textContent = "🔗 DeepSeek 连接引导";
+    hintEl.textContent = "DeepSeek 是云端 OpenAI 兼容接口，无需下载模型。填写 API Key 后可直接使用：";
+    cmdEl.textContent = `Base URL: ${PROVIDER_PRESETS.deepseek.baseUrl} / Model: ${model}`;
+    return;
+  }
+
+  if (provider === "openai") {
+    titleEl.textContent = "🔗 OpenAI 兼容接口引导";
+    hintEl.textContent = "云端 OpenAI 兼容接口无需下载模型。请确认 Base URL 以 /v1 结尾，并填写对应 API Key：";
+    cmdEl.textContent = `Base URL: ${baseUrlEl.value.trim() || PROVIDER_PRESETS.openai.baseUrl} / Model: ${model}`;
+    return;
+  }
+
+  titleEl.textContent = "📦 模型下载引导";
+  hintEl.textContent = "在终端运行以下命令下载模型：";
+  cmdEl.textContent = `ollama pull ${model}`;
+}
 
 function copyModelCmd() {
   const cmd = document.getElementById("modelDownloadCmd");

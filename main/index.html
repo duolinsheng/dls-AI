@@ -521,6 +521,14 @@
           <h2>⚙️ 模型配置</h2>
           <div class="grid">
             <label>
+              连接方式
+              <select id="providerPreset">
+                <option value="ollama">本地 Ollama</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="openai">OpenAI / 兼容接口</option>
+              </select>
+            </label>
+            <label>
               API Key
               <input id="apiKey" type="password" placeholder="可选" />
             </label>
@@ -530,7 +538,7 @@
                 id="baseUrl"
                 type="text"
                 value="/api"
-                placeholder="/api 或 http://127.0.0.1:11434"
+                placeholder="/api、http://127.0.0.1:11434 或 https://api.deepseek.com/v1"
               />
             </label>
             <label>
@@ -549,16 +557,18 @@
                   <option value="llama3.2:1b">llama3.2:1b (Meta轻量)</option>
                   <option value="llama3.2:3b">llama3.2:3b (Meta中模型)</option>
                   <option value="phi4-mini">phi4-mini (微软轻量)</option>
+                  <option value="deepseek-chat">deepseek-chat (DeepSeek V3)</option>
+                  <option value="deepseek-reasoner">deepseek-reasoner (DeepSeek R1)</option>
                 </select>
               </div>
             </label>
           </div>
           <button id="saveConfig" class="btn">保存配置</button>
-          <small>说明：先运行 <code>node server.js</code> 时用 <code>/api</code>；直连 Ollama 用 <code>http://127.0.0.1:11434</code>。配置仅存于本机浏览器。</small>
+          <small>说明：先运行 <code>node server.js</code> 时用 <code>/api</code>；直连 Ollama 用 <code>http://127.0.0.1:11434</code>；DeepSeek 用 <code>https://api.deepseek.com/v1</code> 并填写 API Key。配置仅存于本机浏览器。</small>
 
           <div class="model-guide">
-            <h3>📦 模型下载引导</h3>
-            <p>在终端运行以下命令下载模型：</p>
+            <h3 id="modelGuideTitle">📦 模型下载引导</h3>
+            <p id="modelGuideHint">在终端运行以下命令下载模型：</p>
             <div class="guide-code">
               <code id="modelDownloadCmd">ollama pull qwen3.5:0.8b</code>
               <button class="btn btn-sm" onclick="copyModelCmd()">复制</button>

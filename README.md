@@ -63,6 +63,11 @@ open index.html  # macOS
 
 ### 常用配置示例
 
+**使用 DeepSeek:**
+- Base URL: `https://api.deepseek.com/v1`
+- Model: `deepseek-chat` 或 `deepseek-reasoner`
+- API Key: 填写 DeepSeek 平台创建的密钥
+
 **使用 OpenAI:**
 - Base URL: `https://api.openai.com/v1`
 - Model: `gpt-4o-mini`
