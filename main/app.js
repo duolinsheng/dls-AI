@@ -54,6 +54,7 @@ const PROVIDER_PRESETS = {
 
 const navPageEls = Array.from(document.querySelectorAll(".page"));
 const navBtnEls = Array.from(document.querySelectorAll(".nav-btn"));
+const navGroupEls = Array.from(document.querySelectorAll(".nav-group"));
 const pagesByName = new Map(
   navPageEls.map((el) => [el.id.replace(/^page-/, ""), el]),
 );
@@ -77,6 +78,11 @@ function navigateTo(pageName) {
   for (const btn of navBtnEls) {
     btn.classList.toggle("active", btn.dataset.page === pageName);
   }
+  for (const group of navGroupEls) {
+    const pages = (group.dataset.groupPages || "").split(/\s+/);
+    group.classList.toggle("has-active", pages.includes(pageName));
+    group.classList.remove("open");
+  }
 
   localStorage.setItem("dls-ai-current-page", pageName);
   if (pageName === "tones") ensureToneChart();
@@ -89,8 +95,23 @@ function initNavigation() {
   navButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const pageName = btn.dataset.page;
+      if (!pageName) {
+        const group = btn.closest(".nav-group");
+        if (group) {
+          for (const item of navGroupEls) {
+            if (item !== group) item.classList.remove("open");
+          }
+          group.classList.toggle("open");
+        }
+        return;
+      }
       navigateTo(pageName);
     });
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".nav-menu")) {
+      for (const group of navGroupEls) group.classList.remove("open");
+    }
   });
   
   // 恢复上次访问的页面

@@ -103,13 +103,19 @@ button {
 
 .nav-menu {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   max-width: 100%;
   margin: 0;
   padding: 2px;
-  overflow-x: auto;
+  overflow: visible;
   list-style: none;
   scrollbar-width: thin;
+}
+
+.nav-menu > li {
+  position: relative;
+  flex: 0 0 auto;
 }
 
 .nav-btn {
@@ -134,6 +140,66 @@ button {
   border-color: rgba(83, 224, 164, 0.42);
   background: rgba(83, 224, 164, 0.14);
   color: var(--accent);
+}
+
+.nav-group {
+  display: grid;
+}
+
+.nav-group-trigger::after {
+  margin-left: 6px;
+  color: var(--muted);
+  content: "▾";
+  font-size: 0.75em;
+}
+
+.nav-group.open > .nav-group-trigger,
+.nav-group:focus-within > .nav-group-trigger,
+.nav-group:hover > .nav-group-trigger {
+  border-color: var(--border);
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.nav-group.has-active > .nav-group-trigger {
+  border-color: rgba(83, 224, 164, 0.42);
+  background: rgba(83, 224, 164, 0.14);
+  color: var(--accent);
+}
+
+.nav-submenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1001;
+  display: grid;
+  min-width: 150px;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(13, 17, 27, 0.96);
+  box-shadow: var(--shadow-soft);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  backdrop-filter: blur(18px);
+}
+
+.nav-group.open > .nav-submenu,
+.nav-group:focus-within > .nav-submenu,
+.nav-group:hover > .nav-submenu {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.nav-subitem {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 36px;
+  text-align: left;
 }
 
 .app {

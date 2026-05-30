@@ -16,15 +16,25 @@
         <li><button class="nav-btn" data-page="home">🏠 主页</button></li>
         <li><button class="nav-btn" data-page="chat">💬 AI对话</button></li>
         <li><button class="nav-btn" data-page="translate">🌐 翻译</button></li>
-        <li><button class="nav-btn" data-page="dictionary">📖 词典</button></li>
-        <li><button class="nav-btn" data-page="phrases">📝 短语</button></li>
-        <li><button class="nav-btn" data-page="daily">📅 每日</button></li>
-        <li><button class="nav-btn" data-page="quiz">🎯 测验</button></li>
-        <li><button class="nav-btn" data-page="tones">🎵 声调</button></li>
-        <li><button class="nav-btn" data-page="wordbook">📕 生词本</button></li>
-        <li><button class="nav-btn" data-page="favorites">⭐ 收藏</button></li>
-        <li><button class="nav-btn" data-page="history">📜 历史</button></li>
-        <li><button class="nav-btn" data-page="achievement">🏆 成就</button></li>
+        <li class="nav-group" data-group-pages="dictionary phrases daily quiz tones">
+          <button class="nav-btn nav-group-trigger" type="button" aria-haspopup="true">📚 学习</button>
+          <div class="nav-submenu">
+            <button class="nav-btn nav-subitem" data-page="dictionary">📖 词典</button>
+            <button class="nav-btn nav-subitem" data-page="phrases">📝 短语</button>
+            <button class="nav-btn nav-subitem" data-page="daily">📅 每日一句</button>
+            <button class="nav-btn nav-subitem" data-page="quiz">🎯 测验</button>
+            <button class="nav-btn nav-subitem" data-page="tones">🎵 声调</button>
+          </div>
+        </li>
+        <li class="nav-group" data-group-pages="wordbook favorites history achievement">
+          <button class="nav-btn nav-group-trigger" type="button" aria-haspopup="true">🗂 我的</button>
+          <div class="nav-submenu">
+            <button class="nav-btn nav-subitem" data-page="wordbook">📕 生词本</button>
+            <button class="nav-btn nav-subitem" data-page="favorites">⭐ 收藏</button>
+            <button class="nav-btn nav-subitem" data-page="history">📜 历史</button>
+            <button class="nav-btn nav-subitem" data-page="achievement">🏆 成就</button>
+          </div>
+        </li>
         <li><button class="nav-btn" data-page="settings">⚙️ 设置</button></li>
       </ul>
     </nav>
