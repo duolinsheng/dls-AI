@@ -8,6 +8,7 @@ try {
 }
 const fs = require("fs");
 const path = require("path");
+const { initAuth, handleAuthRequest } = require("./server/auth");
 
 const PORT = process.env.PORT || 8080;
 const OLLAMA_URL = "http://127.0.0.1:11434";
@@ -41,6 +42,21 @@ const MIME_TYPES = {
   ".ico": "image/x-icon",
 };
 
+const STATIC_CACHE_MAX_AGE = {
+  ".csv": 3600,
+  ".html": 300,
+};
+
+function getCacheControl(ext) {
+  if (ext in STATIC_CACHE_MAX_AGE) {
+    return `public, max-age=${STATIC_CACHE_MAX_AGE[ext]}`;
+  }
+  if (ext && ext !== ".html") {
+    return "public, max-age=86400";
+  }
+  return null;
+}
+
 function decodePathname(pathname) {
   try {
     return decodeURIComponent(pathname);
@@ -61,6 +77,11 @@ function isPathInsideRoot(rootPath, targetPath) {
 const server = http.createServer((req, res) => {
   const rawPath = (req.url || "/").split("?")[0] || "/";
   const requestPath = decodePathname(rawPath);
+
+  if (requestPath.startsWith("/auth/")) {
+    handleAuthRequest(req, res, requestPath);
+    return;
+  }
 
   if (requestPath.startsWith("/api/")) {
     console.log(`[Proxy] ${req.method} ${requestPath} -> ${OLLAMA_URL}${requestPath}`);
@@ -98,16 +119,23 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    res.writeHead(200, { "Content-Type": contentType });
+    const headers = { "Content-Type": contentType };
+    const cacheControl = getCacheControl(ext);
+    if (cacheControl) {
+      headers["Cache-Control"] = cacheControl;
+    }
+    res.writeHead(200, headers);
     res.end(content);
   });
 });
 
 server.listen(PORT, () => {
+  initAuth();
   console.log("Duolinsheng ————  A lightweight local server for learn dialects");
   console.log("========================================");
   console.log(`Server running at http://127.0.0.1:${PORT}/`);
   console.log(`Web root: ${WEB_ROOT}`);
   console.log(`TTS root: ${TTS_ROOT}`);
   console.log(`Proxying /api/* to ${OLLAMA_URL}`);
+  console.log(`Auth API: /auth/register, /auth/login, /auth/me, /auth/data`);
 });

@@ -1,0 +1,92 @@
+{
+  "description": "登录/注册 API 测试用例，配合 eval/auth-api-test.mjs 使用",
+  "baseUrl": "http://127.0.0.1:8080",
+  "cases": [
+    {
+      "id": "login_demo_ok",
+      "method": "POST",
+      "path": "/auth/login",
+      "body": { "username": "demo", "password": "demo123" },
+      "expectStatus": 200,
+      "expectFields": ["token", "user.username", "user.role"]
+    },
+    {
+      "id": "login_wrong_password",
+      "method": "POST",
+      "path": "/auth/login",
+      "body": { "username": "demo", "password": "wrong" },
+      "expectStatus": 401
+    },
+    {
+      "id": "register_new_user",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": {
+        "username": "eval_new_user",
+        "password": "EvalPass1!",
+        "displayName": "评测新用户",
+        "role": "student"
+      },
+      "expectStatus": 201,
+      "expectFields": ["token", "user.username", "user.role"]
+    },
+    {
+      "id": "register_missing_role",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": { "username": "no_role_user", "password": "EvalPass1!" },
+      "expectStatus": 400
+    },
+    {
+      "id": "register_invalid_role",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": { "username": "bad_role_user", "password": "EvalPass1!", "role": "superuser" },
+      "expectStatus": 400
+    },
+    {
+      "id": "register_admin_forbidden",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": {
+        "username": "fake_admin",
+        "password": "EvalPass1!",
+        "role": "admin"
+      },
+      "expectStatus": 400
+    },
+    {
+      "id": "register_teacher_role",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": {
+        "username": "eval_teacher_user",
+        "password": "EvalPass1!",
+        "displayName": "评测老师",
+        "role": "teacher"
+      },
+      "expectStatus": 201,
+      "expectFields": ["user.role"]
+    },
+    {
+      "id": "register_duplicate",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": { "username": "demo", "password": "demo123", "role": "student" },
+      "expectStatus": 409
+    },
+    {
+      "id": "register_short_password",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": { "username": "badpass", "password": "123", "role": "student" },
+      "expectStatus": 400
+    },
+    {
+      "id": "me_without_token",
+      "method": "GET",
+      "path": "/auth/me",
+      "expectStatus": 401
+    }
+  ]
+}

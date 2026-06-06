@@ -1,0 +1,45 @@
+{
+  "version": "v1",
+  "description": "多邻省 AI 翻译与对话评测样本集",
+  "samples": [
+    {
+      "id": "tr-001",
+      "type": "translate",
+      "direction": "zh-yue",
+      "input": "你好，今天天气怎么样？",
+      "tags": ["问候", "日常"]
+    },
+    {
+      "id": "tr-002",
+      "type": "translate",
+      "direction": "zh-yue",
+      "input": "这个多少钱？",
+      "tags": ["购物"]
+    },
+    {
+      "id": "tr-003",
+      "type": "translate",
+      "direction": "yue-zh",
+      "input": "唔该晒",
+      "tags": ["礼貌用语"]
+    },
+    {
+      "id": "chat-001",
+      "type": "chat",
+      "input": "「唔该」和「多谢」有什么区别？",
+      "tags": ["语法", "礼貌用语"]
+    },
+    {
+      "id": "dict-001",
+      "type": "dictionary",
+      "input": "学习",
+      "tags": ["词典"]
+    },
+    {
+      "id": "dict-002",
+      "type": "dictionary",
+      "input": "马克思",
+      "tags": ["词典", "多字拆字"]
+    }
+  ]
+}

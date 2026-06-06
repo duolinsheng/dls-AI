@@ -1,0 +1,7 @@
+sample_id,type,input,expected_output,actual_output,score_1_5,pass,failure_reason,notes
+tr-001,translate,你好，今天天气怎么样？,,,,,,
+tr-002,translate,这个多少钱？,,,,,,
+tr-003,translate,唔该晒,,,,,,
+chat-001,chat,「唔该」和「多谢」有什么区别？,,,,,,
+dict-001,dictionary,学习,,,,,,
+dict-002,dictionary,马克思,,,,,,

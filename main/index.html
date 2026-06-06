@@ -35,7 +35,20 @@
             <button class="nav-btn nav-subitem" data-page="achievement">🏆 成就</button>
           </div>
         </li>
+        <li id="navWorkspaceItem" hidden>
+          <button class="nav-btn" data-page="workspace" id="navWorkspaceBtn">🎓 学习中心</button>
+        </li>
         <li><button class="nav-btn" data-page="settings">⚙️ 设置</button></li>
+        <li class="nav-auth" id="navAuthGuest">
+          <button class="nav-btn" data-page="auth">🔐 登录</button>
+        </li>
+        <li class="nav-auth nav-auth-user" id="navAuthUser" hidden>
+          <span id="navUserInfo" class="nav-user-info">
+            <span id="navUsername" class="nav-username"></span>
+            <span id="navUserRole" class="nav-role-badge"></span>
+          </span>
+          <button type="button" class="nav-btn nav-btn-logout" id="logoutBtn">退出</button>
+        </li>
       </ul>
     </nav>
 
@@ -525,6 +538,81 @@
         </div>
       </section>
 
+      <!-- 登录/注册 -->
+      <section id="page-auth" class="page">
+        <div class="panel auth-panel">
+          <h2>🔐 账号</h2>
+          <p class="auth-hint">登录后可云端同步收藏、生词本、学习进度等数据。</p>
+          <div class="auth-tabs">
+            <button type="button" id="authTabLogin" class="auth-tab active">登录</button>
+            <button type="button" id="authTabRegister" class="auth-tab">注册</button>
+          </div>
+          <p id="authMessage" class="auth-message" hidden></p>
+
+          <form id="loginForm" class="auth-form">
+            <label>
+              用户名
+              <input id="loginUsername" type="text" autocomplete="username" placeholder="demo" required />
+            </label>
+            <label>
+              密码
+              <input id="loginPassword" type="password" autocomplete="current-password" placeholder="demo123" required />
+            </label>
+            <button type="submit" class="btn">登录</button>
+            <small>测试账号：demo / demo123</small>
+          </form>
+
+          <form id="registerForm" class="auth-form" hidden>
+            <label>
+              用户名
+              <input id="registerUsername" type="text" autocomplete="username" placeholder="3-20 位字母数字下划线" required />
+            </label>
+            <label>
+              昵称（可选）
+              <input id="registerDisplayName" type="text" autocomplete="nickname" placeholder="显示名称" />
+            </label>
+            <fieldset class="auth-role-fieldset">
+              <legend>身份权限</legend>
+              <div class="auth-role-options">
+                <label class="auth-role-option">
+                  <input type="radio" name="registerRole" value="student" checked required />
+                  <span>🎓 学生</span>
+                </label>
+                <label class="auth-role-option">
+                  <input type="radio" name="registerRole" value="parent" required />
+                  <span>👪 家长</span>
+                </label>
+                <label class="auth-role-option">
+                  <input type="radio" name="registerRole" value="teacher" required />
+                  <span>👨‍🏫 老师</span>
+                </label>
+              </div>
+              <small>管理员账号由系统预设，不可自行注册。</small>
+            </fieldset>
+            <label>
+              密码
+              <input id="registerPassword" type="password" autocomplete="new-password" placeholder="至少 6 位" required />
+            </label>
+            <label>
+              确认密码
+              <input id="registerPassword2" type="password" autocomplete="new-password" required />
+            </label>
+            <button type="submit" class="btn">注册</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- 身份专属工作台 -->
+      <section id="page-workspace" class="page">
+        <div class="panel workspace-panel">
+          <h2 id="roleWorkspaceTitle">工作台</h2>
+          <p class="auth-hint">根据您的身份权限，提供不同的学习、监护、教学与管理功能。</p>
+          <div id="roleWorkspaceContent" class="role-workspace-content">
+            <p class="ws-muted">加载中…</p>
+          </div>
+        </div>
+      </section>
+
       <!-- 设置页面 -->
       <section id="page-settings" class="page">
         <div class="panel config-panel">
@@ -604,6 +692,8 @@
       </section>
     </main>
 
+    <script src="./auth.js"></script>
     <script src="./app.js"></script>
+    <script src="./role-features.js"></script>
   </body>
 </html>

@@ -174,6 +174,10 @@ const yueSearchNormalizeCache = new Map();
 const yueDictEntriesByChar = new Map();
 /** 整词（≥2 字）→ 词典条目 */
 const yueDictEntriesByWord = new Map();
+/** 精确匹配索引：词形（含简繁归一）→ 条目列表 */
+const yueDictExactIndex = new Map();
+/** 包含某字的词条索引（用于多字拆字搜索，避免全表扫描） */
+const yueDictEntriesByContainingChar = new Map();
 let yueMaxWordLength = 1;
 let webAudioContext = null;
 let webAudioPlaybackToken = 0;
@@ -548,6 +552,16 @@ function parseCsvLine(line) {
   return fields;
 }
 
+/** word_list.csv 为简单两列格式，跳过引号解析以加速大批量加载 */
+function parseSimpleTwoColumnLine(line) {
+  const commaIdx = line.indexOf(",");
+  if (commaIdx === -1) return null;
+  const word = line.slice(0, commaIdx).trim();
+  const pinyin = line.slice(commaIdx + 1).trim();
+  if (!word || !pinyin) return null;
+  return [word, pinyin];
+}
+
 function rebuildYueScriptCanonicalMap() {
   yueScriptCanonicalMap.clear();
   yueSearchNormalizeCache.clear();
@@ -648,6 +662,40 @@ function rebuildYueDictRagLookupMaps() {
   }
 }
 
+function addToExactIndex(key, entry) {
+  if (!key) return;
+  if (!yueDictExactIndex.has(key)) yueDictExactIndex.set(key, []);
+  yueDictExactIndex.get(key).push(entry);
+}
+
+function rebuildYueDictSearchIndex() {
+  yueDictExactIndex.clear();
+  yueDictEntriesByContainingChar.clear();
+
+  for (const entry of yueDictionary) {
+    entry.normSimp = normalizeYueSearchText(entry.simp);
+    entry.normTrad = normalizeYueSearchText(entry.trad);
+
+    for (const key of [entry.simp, entry.trad, entry.normSimp, entry.normTrad]) {
+      addToExactIndex(key, entry);
+    }
+
+    const containedChars = new Set();
+    for (const ch of entry.simp) {
+      if (/[\u4e00-\u9fff]/.test(ch)) containedChars.add(ch);
+    }
+    for (const ch of entry.trad) {
+      if (/[\u4e00-\u9fff]/.test(ch)) containedChars.add(ch);
+    }
+    for (const ch of containedChars) {
+      if (!yueDictEntriesByContainingChar.has(ch)) {
+        yueDictEntriesByContainingChar.set(ch, []);
+      }
+      yueDictEntriesByContainingChar.get(ch).push(entry);
+    }
+  }
+}
+
 function loadYueDictionary() {
   if (yueDictionaryLoaded) return Promise.resolve();
   if (yueDictionaryLoadPromise) return yueDictionaryLoadPromise;
@@ -716,13 +764,13 @@ function loadYueDictionary() {
         });
       }
 
-      // word_list.csv: 词语, 粤拼（两列）
-      for (const rawLine of wordListLines) {
-        const line = rawLine.trim();
+      // word_list.csv: 词语, 粤拼（两列，无引号嵌套，使用快速解析）
+      for (let i = 1; i < wordListLines.length; i++) {
+        const line = wordListLines[i].trim();
         if (!line) continue;
 
-        const parts = parseCsvLine(line);
-        if (parts.length < 2) continue;
+        const parts = parseSimpleTwoColumnLine(line);
+        if (!parts) continue;
         addEntry({
           simp: parts[0],
           trad: parts[0],
@@ -735,6 +783,7 @@ function loadYueDictionary() {
 
       rebuildYueScriptCanonicalMap();
       rebuildYueDictRagLookupMaps();
+      rebuildYueDictSearchIndex();
       yueDictionaryLoaded = true;
       console.log(`粤语词典加载完成，共 ${yueDictionary.length} 条记录（yyzd + word_list）`);
     })
@@ -775,47 +824,41 @@ function searchYueDictionaryEntries(query, options = {}) {
     }
   };
 
-  const isExactMatch = (item, text, normalizedText) =>
-    item.simp === text ||
-    item.trad === text ||
-    normalizeYueSearchText(item.simp) === normalizedText ||
-    normalizeYueSearchText(item.trad) === normalizedText;
   const isContainsMatch = (item, text, normalizedText) =>
     item.simp.includes(text) ||
     item.trad.includes(text) ||
-    normalizeYueSearchText(item.simp).includes(normalizedText) ||
-    normalizeYueSearchText(item.trad).includes(normalizedText);
+    item.normSimp.includes(normalizedText) ||
+    item.normTrad.includes(normalizedText);
 
-  // 1) 先放最相关的：整词精确命中。
-  for (const item of yueDictionary) {
-    if (isExactMatch(item, normalizedQuery, normalizedScriptQuery)) {
+  // 1) 整词精确命中：O(1) 索引查找
+  for (const key of [normalizedQuery, normalizedScriptQuery]) {
+    for (const item of yueDictExactIndex.get(key) || []) {
       addResult(item);
     }
   }
 
-  // 2) 再放：包含整词查询的词条（例如查询“馬”时返回带“馬”的词）。
+  // 2) 包含整词查询：单次遍历 + 预计算归一化字段
   for (const item of yueDictionary) {
     if (isContainsMatch(item, normalizedQuery, normalizedScriptQuery)) {
       addResult(item);
     }
   }
 
-  // 3) 多字查询时（例如“馬克思”），额外补充每个字的结果。
+  // 3) 多字查询：按字索引拆字，避免重复全表扫描
   const singleChars = [...new Set(normalizedQuery.match(/[\u4e00-\u9fff]/g) || [])];
   if (singleChars.length > 1) {
     const charsWithExactEntry = new Set();
 
     for (const ch of singleChars) {
       const normalizedScriptCh = normalizeYueSearchText(ch);
-      for (const item of yueDictionary) {
-        if (isExactMatch(item, ch, normalizedScriptCh)) {
+      for (const key of [ch, normalizedScriptCh]) {
+        for (const item of yueDictExactIndex.get(key) || []) {
           addResult(item);
           charsWithExactEntry.add(ch);
         }
       }
     }
 
-    // 若某个单字没有独立词条，也展示该字占位，保证“馬克思”这类查询能看到拆字结果。
     for (const ch of singleChars) {
       if (!charsWithExactEntry.has(ch)) {
         addResult({
@@ -830,9 +873,8 @@ function searchYueDictionaryEntries(query, options = {}) {
     }
 
     for (const ch of singleChars) {
-      const normalizedScriptCh = normalizeYueSearchText(ch);
-      for (const item of yueDictionary) {
-        if (isContainsMatch(item, ch, normalizedScriptCh)) {
+      for (const item of yueDictEntriesByContainingChar.get(ch) || []) {
+        if (isContainsMatch(item, ch, normalizeYueSearchText(ch))) {
           addResult(item);
         }
       }
@@ -2451,6 +2493,9 @@ updateProgressStats();
 
 // 初始化页面导航
 initNavigation();
+
+// 后台预加载词典，减少首次查询/RAG 等待
+loadYueDictionary().catch(() => {});
 
 loadConfigToForm();
 loadConversation();
