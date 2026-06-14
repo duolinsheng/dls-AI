@@ -1,4 +1,5 @@
 const http = require("http");
+const https = require("https");
 let httpProxy;
 try {
   httpProxy = require("http-proxy");
@@ -9,11 +10,16 @@ try {
 const fs = require("fs");
 const path = require("path");
 const { initAuth, handleAuthRequest } = require("./server/auth");
+const { handleMcpRequest } = require("./server/mcp");
 
 const PORT = process.env.PORT || 8080;
+const HTTPS_PORT = process.env.HTTPS_PORT || 8443;
 const OLLAMA_URL = "http://127.0.0.1:11434";
 const WEB_ROOT = path.join(__dirname, "main");
 const TTS_ROOT = path.join(__dirname, "TTS");
+const FORCE_HTTPS = process.env.FORCE_HTTPS === "1";
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || "";
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || "";
 
 const proxy = httpProxy.createProxyServer({
   target: OLLAMA_URL,
@@ -57,6 +63,51 @@ function getCacheControl(ext) {
   return null;
 }
 
+function isSecureRequest(req) {
+  return Boolean(req.socket.encrypted) || String(req.headers["x-forwarded-proto"] || "").split(",")[0] === "https";
+}
+
+function buildSecurityHeaders(req) {
+  const headers = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(self), geolocation=()",
+    "Content-Security-Policy": [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "media-src 'self' blob:",
+      "connect-src 'self' http://127.0.0.1:* http://localhost:* https:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
+  };
+  if (isSecureRequest(req)) {
+    headers["Strict-Transport-Security"] = "max-age=15552000; includeSubDomains";
+  }
+  return headers;
+}
+
+function sendPlain(res, status, text, extraHeaders = {}) {
+  res.writeHead(status, {
+    "Content-Type": "text/plain; charset=utf-8",
+    ...extraHeaders,
+  });
+  res.end(text);
+}
+
+function redirectToHttps(req, res) {
+  const host = String(req.headers.host || `127.0.0.1:${PORT}`).replace(/:\d+$/, `:${HTTPS_PORT}`);
+  res.writeHead(301, {
+    Location: `https://${host}${req.url || "/"}`,
+  });
+  res.end();
+}
+
 function decodePathname(pathname) {
   try {
     return decodeURIComponent(pathname);
@@ -74,12 +125,52 @@ function isPathInsideRoot(rootPath, targetPath) {
   );
 }
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
+  if (FORCE_HTTPS && !isSecureRequest(req)) {
+    redirectToHttps(req, res);
+    return;
+  }
+
+  const originalWriteHead = res.writeHead;
+  res.writeHead = function writeHeadWithSecurity(statusCode, reasonPhrase, headers) {
+    const securityHeaders = buildSecurityHeaders(req);
+    if (typeof reasonPhrase === "string") {
+      return originalWriteHead.call(this, statusCode, reasonPhrase, {
+        ...securityHeaders,
+        ...(headers || {}),
+      });
+    }
+    return originalWriteHead.call(this, statusCode, {
+      ...securityHeaders,
+      ...(reasonPhrase || {}),
+    });
+  };
+
   const rawPath = (req.url || "/").split("?")[0] || "/";
   const requestPath = decodePathname(rawPath);
 
   if (requestPath.startsWith("/auth/")) {
     handleAuthRequest(req, res, requestPath);
+    return;
+  }
+
+  if (requestPath === "/mcp" || requestPath.startsWith("/mcp/")) {
+    handleMcpRequest(req, res, requestPath);
+    return;
+  }
+
+  if (requestPath === "/health/security") {
+    sendPlain(
+      res,
+      200,
+      JSON.stringify({
+        httpsEnabled: isSecureRequest(req),
+        forceHttps: FORCE_HTTPS,
+        hsts: isSecureRequest(req),
+        tls: "TLS 1.2/1.3 when SSL_CERT_PATH and SSL_KEY_PATH are configured",
+      }),
+      { "Content-Type": "application/json; charset=utf-8", ...buildSecurityHeaders(req) },
+    );
     return;
   }
 
@@ -99,8 +190,7 @@ const server = http.createServer((req, res) => {
   const filePath = path.join(baseRoot, relativePath);
 
   if (!isPathInsideRoot(baseRoot, filePath)) {
-    res.writeHead(403);
-    res.end("Forbidden");
+    sendPlain(res, 403, "Forbidden", buildSecurityHeaders(req));
     return;
   }
 
@@ -110,16 +200,14 @@ const server = http.createServer((req, res) => {
   fs.readFile(filePath, (err, content) => {
     if (err) {
       if (err.code === "ENOENT") {
-        res.writeHead(404);
-        res.end("Not Found");
+        sendPlain(res, 404, "Not Found", buildSecurityHeaders(req));
       } else {
-        res.writeHead(500);
-        res.end("Server Error");
+        sendPlain(res, 500, "Server Error", buildSecurityHeaders(req));
       }
       return;
     }
 
-    const headers = { "Content-Type": contentType };
+    const headers = { "Content-Type": contentType, ...buildSecurityHeaders(req) };
     const cacheControl = getCacheControl(ext);
     if (cacheControl) {
       headers["Cache-Control"] = cacheControl;
@@ -127,7 +215,9 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, headers);
     res.end(content);
   });
-});
+}
+
+const server = http.createServer(handleRequest);
 
 server.listen(PORT, () => {
   initAuth();
@@ -138,4 +228,31 @@ server.listen(PORT, () => {
   console.log(`TTS root: ${TTS_ROOT}`);
   console.log(`Proxying /api/* to ${OLLAMA_URL}`);
   console.log(`Auth API: /auth/register, /auth/login, /auth/me, /auth/data`);
+  console.log("MCP API: /mcp, /mcp/tools, /mcp/call, /mcp/memory/*");
 });
+
+if (SSL_CERT_PATH && SSL_KEY_PATH) {
+  const httpsServer = https.createServer(
+    {
+      cert: fs.readFileSync(SSL_CERT_PATH),
+      key: fs.readFileSync(SSL_KEY_PATH),
+      minVersion: "TLSv1.2",
+      ciphers: [
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_CHACHA20_POLY1305_SHA256",
+        "TLS_AES_128_GCM_SHA256",
+        "ECDHE-ECDSA-AES256-GCM-SHA384",
+        "ECDHE-RSA-AES256-GCM-SHA384",
+        "ECDHE-ECDSA-AES128-GCM-SHA256",
+        "ECDHE-RSA-AES128-GCM-SHA256",
+      ].join(":"),
+      honorCipherOrder: true,
+    },
+    handleRequest,
+  );
+  httpsServer.listen(HTTPS_PORT, () => {
+    console.log(`HTTPS server running at https://127.0.0.1:${HTTPS_PORT}/`);
+  });
+} else {
+  console.log("HTTPS disabled: set SSL_CERT_PATH and SSL_KEY_PATH to enable TLS 1.2/1.3 locally.");
+}

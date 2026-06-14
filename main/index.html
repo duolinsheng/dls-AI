@@ -57,7 +57,7 @@
       <section id="page-home" class="page active">
         <header class="hero">
           <h1>多邻省 AI 学习助手</h1>
-          <p>支持 Ollama AI 粤语对话与学习</p>
+          <p>支持 Ollama AI 粤语、闽南语对话与学习</p>
         </header>
 
         <div class="features-grid">
@@ -69,12 +69,12 @@
           <div class="feature-card" onclick="navigateTo('translate')">
             <div class="feature-icon">🌐</div>
             <h3>多方言翻译</h3>
-            <p>粤语翻译与学习</p>
+            <p>粤语、闽南语翻译与学习</p>
           </div>
           <div class="feature-card" onclick="navigateTo('dictionary')">
             <div class="feature-icon">📖</div>
-            <h3>粤语词典</h3>
-            <p>查询粤语词汇和发音</p>
+            <h3>方言词典</h3>
+            <p>查询粤语、闽南语词汇和注音</p>
           </div>
           <div class="feature-card" onclick="navigateTo('phrases')">
             <div class="feature-icon">📝</div>
@@ -168,6 +168,15 @@
       <section id="page-chat" class="page">
         <div class="panel">
           <h2>💬 AI 对话</h2>
+          <div class="translate-controls">
+            <label>
+              学习方言
+              <select id="chatDialect">
+                <option value="yue">粤语</option>
+                <option value="minnan">闽南语</option>
+              </select>
+            </label>
+          </div>
           <div class="chat-avatar">
             <img src="assets/pictures/person/monster-pink.gif" alt="AI助手" class="pixel-avatar" />
           </div>
@@ -186,13 +195,15 @@
       <!-- 翻译页面 -->
       <section id="page-translate" class="page">
         <div class="panel">
-          <h2>🌐 中文 / 粤语 互译</h2>
+          <h2>🌐 中文 / 方言互译</h2>
           <div class="translate-controls">
             <label>
               翻译方向
               <select id="direction">
                 <option value="zh_to_yue">中文 → 粤语</option>
                 <option value="yue_to_zh">粤语 → 中文</option>
+                <option value="zh_to_minnan">中文 → 闽南语</option>
+                <option value="minnan_to_zh">闽南语 → 中文</option>
               </select>
             </label>
           </div>
@@ -222,12 +233,19 @@
       <!-- 词典页面 -->
       <section id="page-dictionary" class="page">
         <div class="panel">
-          <h2>📖 粤语词典查询</h2>
+          <h2>📖 方言词典查询</h2>
           <div class="translate-controls">
+            <label>
+              词典
+              <select id="dictDialect">
+                <option value="yue">粤语</option>
+                <option value="minnan">闽南语</option>
+              </select>
+            </label>
             <input
               type="text"
               id="yueDictSearch"
-              placeholder="输入粤语词汇查询..."
+              placeholder="输入方言词汇或中文释义查询..."
             />
             <button id="yueDictSearchBtn" class="btn">查询</button>
           </div>
@@ -685,6 +703,7 @@
             <div class="data-actions">
               <button id="exportAllDataBtn" class="btn">📤 导出全部数据</button>
               <button id="importDataBtn" class="btn">📥 导入数据</button>
+              <button id="clearMcpMemoryBtn" class="btn secondary">清除 AI 长期记忆</button>
               <input type="file" id="importDataFile" accept=".json" style="display:none" />
             </div>
           </div>

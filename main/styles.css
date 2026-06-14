@@ -1181,6 +1181,13 @@ select:focus {
   color: var(--muted-2);
 }
 
+.yue-dict-item .dict-source {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
 .audio-action {
   margin-top: 12px;
 }

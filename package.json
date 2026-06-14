@@ -5,7 +5,8 @@
   "description": "多邻省 AI 学习助手",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "tls:check": "node scripts/check-tls-config.mjs"
   },
   "dependencies": {
     "http-proxy": "^1.18.1"
