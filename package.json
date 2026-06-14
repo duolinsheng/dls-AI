@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "tls:check": "node scripts/check-tls-config.mjs"
+    "tls:check": "node scripts/check-tls-config.mjs",
+    "check:tls": "node scripts/check-tls-config.mjs",
+    "check:mcp": "node -e \"const m=require('./server/mcp'); console.log(JSON.stringify(m.tools.map(t=>t.name)))\""
   },
   "dependencies": {
     "http-proxy": "^1.18.1"

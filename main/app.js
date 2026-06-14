@@ -13,7 +13,6 @@ const saveConfigBtn = document.getElementById("saveConfig");
 
 const chatInputEl = document.getElementById("chatInput");
 const sendChatBtn = document.getElementById("sendChat");
-const chatDialectEl = document.getElementById("chatDialect");
 
 const directionEl = document.getElementById("direction");
 const translateInputEl = document.getElementById("translateInput");
@@ -32,26 +31,12 @@ const translateHistoryListEl = document.getElementById("translateHistoryList");
 const noTranslateHistoryEl = document.getElementById("noTranslateHistory");
 const clearChatHistoryBtn = document.getElementById("clearChatHistoryBtn");
 const clearTranslateHistoryBtn = document.getElementById("clearTranslateHistoryBtn");
+const dictDialectEl = document.getElementById("dictDialect");
 const yueDictSearchEl = document.getElementById("yueDictSearch");
 const yueDictSearchBtn = document.getElementById("yueDictSearchBtn");
 const yueDictResultEl = document.getElementById("yueDictResult");
 const noYueDictResultEl = document.getElementById("noYueDictResult");
-const dictDialectEl = document.getElementById("dictDialect");
-const clearMcpMemoryBtn = document.getElementById("clearMcpMemoryBtn");
 let currentFavCategory = "all";
-
-const DIALECTS = {
-  yue: {
-    label: "粤语",
-    pinyinLabel: "粤拼",
-    speechLang: "zh-HK",
-  },
-  minnan: {
-    label: "闽南语",
-    pinyinLabel: "台罗",
-    speechLang: "zh-TW",
-  },
-};
 
 const PROVIDER_PRESETS = {
   ollama: {
@@ -138,33 +123,29 @@ function initNavigation() {
 const conversation = [
   {
     role: "system",
-    content: getTutorSystemPrompt("yue"),
+    content:
+      "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言",
   },
 ];
 
-function getTutorSystemPrompt(dialect = "yue") {
-  if (dialect === "minnan") {
-    return "你是一个耐心的闽南语学习助手，熟悉闽南语常用词、台罗/白话字注音和生活场景表达。回答简洁、准确、友好。\n规则：\n1. 若涉及闽南语，请提供汉字、台罗和标准中文解释\n2. 如有词典参考信息，请优先参考其中的台罗、白话字和含义\n3. 标注地区差异，避免把单一地区说法包装成唯一标准\n4. 举例说明时优先使用问候、点餐、购物等日常场景\n5. 如果用户问发音，请用台罗标注（如：你好 lí-hó）";
-  }
-  return "你是一个耐心的粤语学习助手，精通粤语发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤语拼音（粤拼）和标准中文解释\n2. 解释粤语字词时，给出对应的繁体字和简体字\n3. 如有词典参考信息，请优先参考其中的粤拼和含义\n4. 举例说明时使用常见的生活场景\n5. 如果用户问发音，请用粤拼标注（如：你好 nei5 hou2）";
-}
-
-function getSelectedChatDialect() {
-  return chatDialectEl?.value === "minnan" ? "minnan" : "yue";
-}
-
 const localZhToShMap = {
   你好: "侬好",
-  谢谢: "霞霞侬",
+  谢谢: "谢谢侬",
+  不好意思: "对勿起",
+  对不起: "对勿起",
   我: "阿拉",
   你: "侬",
   我们: "阿拉",
   今天: "今朝",
   明天: "明朝",
   这个: "格个",
-  那个: "阿个",
-  什么: "啥个",
-  很好: "老好额",
+  那个: "伊个",
+  什么: "啥物事",
+  怎么: "哪能",
+  吃饭: "吃饭",
+  多少钱: "几钿",
+  很好: "老好",
+  再见: "再会",
 };
 
 const localZhToYueMap = {
@@ -181,36 +162,93 @@ const localZhToYueMap = {
   很好: "几好",
 };
 
-const localZhToMinnanMap = {
-  你好: "你好",
-  谢谢: "多謝",
-  我: "我",
-  你: "你",
-  我们: "咱",
-  今天: "今仔日",
-  明天: "明仔載",
-  这个: "這个",
-  那个: "彼个",
-  什么: "啥物",
-  很好: "真好",
-  吃饭: "食飯",
-  不好意思: "歹勢",
-  多少钱: "幾若錢",
-};
-
 const localShToZhMap = Object.fromEntries(
   Object.entries(localZhToShMap).map(([zh, sh]) => [sh, zh]),
 );
 const localYueToZhMap = Object.fromEntries(
   Object.entries(localZhToYueMap).map(([zh, yue]) => [yue, zh]),
 );
+
+const localZhToMinnanMap = {
+  你好: "你好",
+  谢谢: "多謝",
+  不好意思: "歹勢",
+  对不起: "歹勢",
+  吃饭: "食飯",
+  今天: "今仔日",
+  明天: "明仔載",
+  哪里: "佗位",
+  请问: "請問",
+  多少钱: "幾若錢",
+  太贵: "傷貴",
+  便宜一点: "較俗",
+  好吃: "好食",
+  再见: "再會",
+};
+
 const localMinnanToZhMap = Object.fromEntries(
   Object.entries(localZhToMinnanMap).map(([zh, minnan]) => [minnan, zh]),
 );
 
+const localZhToSichuanMap = {
+  你好: "你好",
+  谢谢: "谢谢",
+  不好意思: "不好意思",
+  对不起: "对不起",
+  我: "我",
+  你: "你",
+  我们: "我们",
+  今天: "今天",
+  明天: "明天",
+  什么: "啥子",
+  怎么: "啷个",
+  哪里: "哪儿",
+  可以: "要得",
+  没有: "莫得",
+  很好: "巴适",
+  舒服: "安逸",
+  加油: "雄起",
+  吃饭: "吃饭",
+  多少钱: "好多钱",
+  再见: "拜拜",
+};
+
+const localSichuanToZhMap = Object.fromEntries(
+  Object.entries(localZhToSichuanMap).map(([zh, sichuan]) => [sichuan, zh]),
+);
+
+const REGIONAL_DIALECTS = {
+  minnan: {
+    label: "闽南语",
+    file: "read/minnan_dictionary.csv",
+    readingLabel: "台罗",
+    altLabel: "白话字",
+  },
+  shanghai: {
+    label: "上海话",
+    file: "read/shanghai_dictionary.csv",
+    readingLabel: "罗马化",
+    altLabel: "IPA",
+  },
+  sichuan: {
+    label: "四川话",
+    file: "read/sichuan_dictionary.csv",
+    readingLabel: "读音提示",
+    altLabel: "IPA",
+  },
+};
+
 let yueDictionary = [];
 let yueDictionaryLoaded = false;
 let yueDictionaryLoadPromise = null;
+let minnanDictionary = [];
+let minnanDictionaryLoaded = false;
+let minnanDictionaryLoadPromise = null;
+const regionalDialectState = {
+  minnan: { entries: minnanDictionary, loaded: minnanDictionaryLoaded, loadPromise: minnanDictionaryLoadPromise },
+  shanghai: { entries: [], loaded: false, loadPromise: null },
+  sichuan: { entries: [], loaded: false, loadPromise: null },
+};
 const yueAudioAvailabilityCache = new Map();
 const yueAudioResolveCache = new Map();
 const yueWordPinyinMap = new Map();
@@ -278,9 +316,6 @@ const yuePinyinAliasMap = Object.freeze({
 const yueScriptFallbackPairs = Object.freeze({
   马: "馬",
 });
-let minnanDictionary = [];
-let minnanDictionaryLoaded = false;
-let minnanDictionaryLoadPromise = null;
 
 function getConfig() {
   const raw = localStorage.getItem(configKey);
@@ -554,6 +589,10 @@ function localTranslate(input, direction) {
   if (direction === "yue_to_zh") return applyDict(input, localYueToZhMap);
   if (direction === "zh_to_minnan") return applyDict(input, localZhToMinnanMap);
   if (direction === "minnan_to_zh") return applyDict(input, localMinnanToZhMap);
+  if (direction === "zh_to_shanghai") return applyDict(input, localZhToShMap);
+  if (direction === "shanghai_to_zh") return applyDict(input, localShToZhMap);
+  if (direction === "zh_to_sichuan") return applyDict(input, localZhToSichuanMap);
+  if (direction === "sichuan_to_zh") return applyDict(input, localSichuanToZhMap);
   return input;
 }
 
@@ -564,9 +603,17 @@ function getTranslatePrompt(direction) {
     yue_to_zh:
       "你是专业的粤语翻译助手。请把用户输入的粤语翻译成标准中文（普通话）。\n规则：\n1. 将粤语特有字词转换为标准中文（如：係→是、嘅→的、喺→在、唔→不、咗→了等）\n2. 将粤语音译词转为标准中文（如：的士→出租车、巴士→公交车等）\n3. 将粤语语法转为标准中文语法（如：我哋→我们、呢个→这个等）\n4. 如有词典参考信息，请优先参考其中的含义\n5. 只输出翻译结果，不要解释",
     zh_to_minnan:
-      "你是专业的闽南语翻译助手。请把用户输入的标准中文翻译成自然的闽南语。\n规则：\n1. 输出闽南语汉字，并在必要时补充台罗注音\n2. 如有词典参考信息，请优先参考其中的台罗/白话字和含义\n3. 遇到地区差异时选择通用说法，不要臆造绝对标准\n4. 只输出翻译结果，不要长篇解释",
+      "你是专业的闽南语翻译助手。请把用户输入的标准中文翻译成自然的闽南语/台语。\n规则：\n1. 使用常见闽南语词形（如：食飯、歹勢、多謝、今仔日、佗位等）\n2. 必要时保留汉字写法，并可在括号内给出台罗注音\n3. 如有词典参考信息，请优先参考其中的台罗、白话字和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
     minnan_to_zh:
-      "你是专业的闽南语翻译助手。请把用户输入的闽南语翻译成标准中文（普通话）。\n规则：\n1. 保留原意，必要时解释闽南语特殊表达\n2. 如有词典参考信息，请优先参考其中的含义\n3. 只输出翻译结果，不要长篇解释",
+      "你是专业的闽南语翻译助手。请把用户输入的闽南语/台语翻译成标准中文（普通话）。\n规则：\n1. 识别闽南语常见汉字词与台罗/白话字注音\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
+    zh_to_shanghai:
+      "你是专业的上海话翻译助手。请把用户输入的标准中文翻译成自然的上海话。\n规则：\n1. 使用常见上海话词形（如：侬好、阿拉、今朝、哪能、啥物事等）\n2. 必要时在括号内给出读音提示或 IPA\n3. 如有词典参考信息，请优先参考其中的罗马化、IPA 和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
+    shanghai_to_zh:
+      "你是专业的上海话翻译助手。请把用户输入的上海话翻译成标准中文（普通话）。\n规则：\n1. 识别上海话常见词形和口语表达\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
+    zh_to_sichuan:
+      "你是专业的四川话翻译助手。请把用户输入的标准中文翻译成自然的四川话。\n规则：\n1. 使用常见四川话表达（如：啷个、啥子、要得、莫得、巴适、安逸等）\n2. 必要时给出读音提示\n3. 如有词典参考信息，请优先参考其中的读音和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
+    sichuan_to_zh:
+      "你是专业的四川话翻译助手。请把用户输入的四川话翻译成标准中文（普通话）。\n规则：\n1. 识别四川话常见口语词和语气表达\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
   };
   return (
     promptMap[direction] ||
@@ -578,6 +625,12 @@ function getTranslateDirectionName(direction) {
   const directionMap = {
     zh_to_yue: "中文 → 粤语",
     yue_to_zh: "粤语 → 中文",
+    zh_to_minnan: "中文 → 闽南语",
+    minnan_to_zh: "闽南语 → 中文",
+    zh_to_shanghai: "中文 → 上海话",
+    shanghai_to_zh: "上海话 → 中文",
+    zh_to_sichuan: "中文 → 四川话",
+    sichuan_to_zh: "四川话 → 中文",
   };
   return directionMap[direction] || direction;
 }
@@ -857,29 +910,25 @@ function loadMinnanDictionary() {
   if (minnanDictionaryLoadPromise) return minnanDictionaryLoadPromise;
 
   minnanDictionaryLoadPromise = fetch("read/minnan_dictionary.csv")
-    .then((response) => response.text())
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.text();
+    })
     .then((text) => {
-      const lines = text.split(/\r?\n/);
-      minnanDictionary = [];
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        const parts = parseCsvLine(line);
-        if (parts.length < 4) continue;
-        const [hanji, tailo, poj, zh, category, source] = parts;
-        if (!hanji || !tailo) continue;
-        minnanDictionary.push({
-          dialect: "minnan",
+      minnanDictionary = text
+        .split(/\r?\n/)
+        .slice(1)
+        .map((line) => parseCsvLine(line))
+        .filter((parts) => parts.length >= 4 && parts[0])
+        .map(([hanji, tailo, poj, zh, category, source]) => ({
           simp: hanji,
           trad: hanji,
           pinyin: tailo,
-          alt: poj || "",
-          example: category || "",
-          explanation: zh || "",
+          alt: poj,
+          explanation: zh,
+          category: category || "",
           source: source || "",
-          romanizationLabel: "台罗",
-        });
-      }
+        }));
       minnanDictionaryLoaded = true;
       console.log(`闽南语词典加载完成，共 ${minnanDictionary.length} 条记录`);
     })
@@ -894,17 +943,234 @@ function loadMinnanDictionary() {
 }
 
 function searchMinnanDictionaryEntries(query, options = {}) {
-  if (!minnanDictionaryLoaded) return [];
-  const q = (query || "").trim().toLowerCase();
-  if (!q) return [];
+  const normalizedQuery = (query || "").trim().toLowerCase();
+  if (!normalizedQuery) return [];
+
   const { limit = 200 } = options;
-  return minnanDictionary
-    .filter((item) =>
-      [item.simp, item.trad, item.pinyin, item.alt, item.explanation, item.example]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(q)),
-    )
-    .slice(0, Math.max(1, limit));
+  const results = [];
+  const seen = new Set();
+  for (const item of minnanDictionary) {
+    const haystack = [
+      item.simp,
+      item.trad,
+      item.pinyin,
+      item.alt,
+      item.explanation,
+      item.category,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (!haystack.includes(normalizedQuery)) continue;
+    const key = `${item.simp}|${item.pinyin}|${item.explanation}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push(item);
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
+function extractMinnanDictContext(text) {
+  if (!minnanDictionary || minnanDictionary.length === 0) return "";
+  const raw = (text || "").trim();
+  if (!raw) return "";
+
+  const matchedEntries = [];
+  const seen = new Set();
+  const tokens = raw.match(/[\u4e00-\u9fff]{1,4}|[a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùḿńⁿ]+/g) || [];
+  for (const token of tokens) {
+    const found = searchMinnanDictionaryEntries(token, { limit: 4 });
+    for (const entry of found) {
+      const key = `${entry.simp}|${entry.pinyin}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      matchedEntries.push(entry);
+    }
+  }
+
+  return matchedEntries
+    .slice(0, 12)
+    .map((entry) => {
+      const alt = entry.alt ? ` / 白话字:${entry.alt}` : "";
+      return `${entry.simp} 台罗:${entry.pinyin}${alt} - ${entry.explanation}`;
+    })
+    .join("\n");
+}
+
+function renderMinnanDictResult(results) {
+  if (!Array.isArray(results) || results.length === 0) {
+    yueDictResultEl.innerHTML = "";
+    noYueDictResultEl.style.display = "block";
+    noYueDictResultEl.textContent = "未找到闽南语词条";
+    return;
+  }
+
+  noYueDictResultEl.style.display = "none";
+  yueDictResultEl.innerHTML = results
+    .map((item) => `
+      <div class="yue-dict-item">
+        <h4>${item.simp}</h4>
+        <p class="pinyin">台罗：${item.pinyin || "暂无"}${item.alt ? ` / 白话字：${item.alt}` : ""}</p>
+        <p class="example">分类：${item.category || "通用"}</p>
+        <p class="explanation">${item.explanation || "暂无释义"}</p>
+        <p class="example">来源：${item.source || "本地整理"}</p>
+        <div class="audio-action">
+          <button class="play-btn" onclick="speakWithWebSpeech('${item.simp.replace(/'/g, "\\'")}')">🔊 浏览器朗读</button>
+        </div>
+      </div>
+    `)
+    .join("");
+}
+
+function isRegionalDialect(dialect) {
+  return Boolean(REGIONAL_DIALECTS[dialect]);
+}
+
+function getRegionalDialectState(dialect) {
+  if (!regionalDialectState[dialect]) {
+    regionalDialectState[dialect] = { entries: [], loaded: false, loadPromise: null };
+  }
+  return regionalDialectState[dialect];
+}
+
+function getRegionalDialectEntries(dialect) {
+  if (dialect === "minnan") return minnanDictionary;
+  return getRegionalDialectState(dialect).entries;
+}
+
+function loadRegionalDialectDictionary(dialect) {
+  if (dialect === "minnan") {
+    return loadMinnanDictionary().then(() => {
+      const state = getRegionalDialectState("minnan");
+      state.entries = minnanDictionary;
+      state.loaded = minnanDictionaryLoaded;
+      state.loadPromise = minnanDictionaryLoadPromise;
+    });
+  }
+
+  const meta = REGIONAL_DIALECTS[dialect];
+  if (!meta) return Promise.reject(new Error(`未知方言：${dialect}`));
+
+  const state = getRegionalDialectState(dialect);
+  if (state.loaded) return Promise.resolve();
+  if (state.loadPromise) return state.loadPromise;
+
+  state.loadPromise = fetch(meta.file)
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.text();
+    })
+    .then((text) => {
+      state.entries = text
+        .split(/\r?\n/)
+        .slice(1)
+        .map((line) => parseCsvLine(line))
+        .filter((parts) => parts.length >= 4 && parts[0])
+        .map(([term, romanization, ipa, zh, category, source]) => ({
+          simp: term,
+          trad: term,
+          pinyin: romanization,
+          alt: ipa,
+          explanation: zh,
+          category: category || "",
+          source: source || "",
+        }));
+      state.loaded = true;
+      console.log(`${meta.label}词典加载完成，共 ${state.entries.length} 条记录`);
+    })
+    .catch((err) => {
+      state.loadPromise = null;
+      state.loaded = false;
+      console.error(`加载${meta.label}词典失败:`, err);
+      throw err;
+    });
+
+  return state.loadPromise;
+}
+
+function searchRegionalDialectEntries(dialect, query, options = {}) {
+  const normalizedQuery = (query || "").trim().toLowerCase();
+  if (!normalizedQuery) return [];
+
+  const { limit = 200 } = options;
+  const results = [];
+  const seen = new Set();
+  for (const item of getRegionalDialectEntries(dialect)) {
+    const haystack = [
+      item.simp,
+      item.trad,
+      item.pinyin,
+      item.alt,
+      item.explanation,
+      item.category,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (!haystack.includes(normalizedQuery)) continue;
+    const key = `${item.simp}|${item.pinyin}|${item.explanation}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push(item);
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
+function extractRegionalDialectContext(dialect, text) {
+  const entries = getRegionalDialectEntries(dialect);
+  if (!entries || entries.length === 0) return "";
+  const raw = (text || "").trim();
+  if (!raw) return "";
+
+  const matchedEntries = [];
+  const seen = new Set();
+  const tokens = raw.match(/[\u4e00-\u9fff]{1,4}|[a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùḿńⁿ]+/g) || [];
+  for (const token of tokens) {
+    const found = searchRegionalDialectEntries(dialect, token, { limit: 4 });
+    for (const entry of found) {
+      const key = `${entry.simp}|${entry.pinyin}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      matchedEntries.push(entry);
+    }
+  }
+
+  const meta = REGIONAL_DIALECTS[dialect];
+  return matchedEntries
+    .slice(0, 12)
+    .map((entry) => {
+      const alt = entry.alt ? ` / ${meta.altLabel}:${entry.alt}` : "";
+      return `${entry.simp} ${meta.readingLabel}:${entry.pinyin}${alt} - ${entry.explanation}`;
+    })
+    .join("\n");
+}
+
+function renderRegionalDialectResult(dialect, results) {
+  const meta = REGIONAL_DIALECTS[dialect];
+  if (!Array.isArray(results) || results.length === 0) {
+    yueDictResultEl.innerHTML = "";
+    noYueDictResultEl.style.display = "block";
+    noYueDictResultEl.textContent = `未找到${meta.label}词条`;
+    return;
+  }
+
+  noYueDictResultEl.style.display = "none";
+  yueDictResultEl.innerHTML = results
+    .map((item) => `
+      <div class="yue-dict-item">
+        <h4>${item.simp}</h4>
+        <p class="pinyin">${meta.readingLabel}：${item.pinyin || "暂无"}${item.alt ? ` / ${meta.altLabel}：${item.alt}` : ""}</p>
+        <p class="example">分类：${item.category || "通用"}</p>
+        <p class="explanation">${item.explanation || "暂无释义"}</p>
+        <p class="example">来源：${item.source || "本地整理"}</p>
+        <div class="audio-action">
+          <button class="play-btn" onclick="speakWithWebSpeech('${item.simp.replace(/'/g, "\\'")}')">🔊 浏览器朗读</button>
+        </div>
+      </div>
+    `)
+    .join("");
 }
 
 function findYueWords(word) {
@@ -1575,35 +1841,19 @@ function renderYueDictResult(results) {
   yueDictResultEl.innerHTML = "";
   
   results.forEach((item) => {
-    const dialect = item.dialect || (dictDialectEl?.value === "minnan" ? "minnan" : "yue");
-    const meta = DIALECTS[dialect] || DIALECTS.yue;
-    const pinyinLabel = item.romanizationLabel || meta.pinyinLabel;
     const el = document.createElement("div");
     el.className = "yue-dict-item";
 
     el.innerHTML = `
       <h4>${item.simp} <span style="font-size:0.85em;color:var(--muted)">(${item.trad})</span></h4>
-      <p class="pinyin">${pinyinLabel}：${item.pinyin}${item.alt ? ` / ${item.alt}` : ""}</p>
-      ${item.example ? `<p class="example">分类/示例：${item.example}</p>` : ""}
+      <p class="pinyin">拼音：${item.pinyin}</p>
+      ${item.example ? `<p class="example">示例：${item.example}</p>` : ""}
       ${item.explanation ? `<p class="explanation">解释：${item.explanation}</p>` : ""}
-      ${item.source ? `<p class="dict-source">来源：${item.source}</p>` : ""}
       <div class="audio-action"><span style="color:var(--muted);font-size:0.85em">（检测发音中...）</span></div>
     `;
     yueDictResultEl.appendChild(el);
 
     const audioActionEl = el.querySelector(".audio-action");
-    if (dialect === "minnan") {
-      audioActionEl.innerHTML = "";
-      const playBtn = document.createElement("button");
-      playBtn.className = "play-btn";
-      playBtn.textContent = "🔊 浏览器朗读";
-      playBtn.addEventListener("click", () => {
-        speakWithWebSpeech(`${item.simp}，${item.pinyin}`, meta.speechLang);
-        trackAudioPlayed();
-      });
-      audioActionEl.appendChild(playBtn);
-      return;
-    }
     resolveYueAudioPathsFromPinyin(item.pinyin).then((audioPaths) => {
       if (!audioActionEl) return;
       audioActionEl.innerHTML = "";
@@ -1629,22 +1879,38 @@ async function searchYueWord() {
     return;
   }
 
-  const dialect = dictDialectEl?.value === "minnan" ? "minnan" : "yue";
-  try {
-    if (dialect === "minnan") {
-      await loadMinnanDictionary();
-    } else {
-      await loadYueDictionary();
+  const dialect = dictDialectEl?.value || "yue";
+  if (isRegionalDialect(dialect)) {
+    try {
+      await loadRegionalDialectDictionary(dialect);
+    } catch {
+      alert(`${REGIONAL_DIALECTS[dialect].label}词典加载失败，请稍后重试`);
+      return;
     }
-  } catch {
-    alert(`${DIALECTS[dialect].label}词典加载失败，请稍后重试`);
+
+    const results = searchRegionalDialectEntries(dialect, word, { limit: 200 });
+    if (results.length > 0) {
+      renderRegionalDialectResult(dialect, results);
+      results.slice(0, 3).forEach((r) => {
+        addToWordbook(r.simp, r.trad, r.pinyin, r.explanation);
+      });
+      trackDailyTask("query_dict", 1);
+      addXP(3);
+    } else {
+      renderRegionalDialectResult(dialect, []);
+      alert(`未找到词汇 "${word}" 的相关信息`);
+    }
     return;
   }
 
-  const results =
-    dialect === "minnan"
-      ? searchMinnanDictionaryEntries(word, { limit: 200 })
-      : searchYueDictionaryEntries(word, { limit: 200 });
+  try {
+    await loadYueDictionary();
+  } catch {
+    alert("粤语词典加载失败，请稍后重试");
+    return;
+  }
+
+  const results = searchYueDictionaryEntries(word, { limit: 200 });
 
   if (results.length > 0) {
     renderYueDictResult(results);
@@ -1736,72 +2002,6 @@ function copyModelCmd() {
 
 const CHAT_STORAGE_KEY = "dls-ai-chat-history";
 const MAX_CHAT_HISTORY = 50;
-const MCP_MEMORY_SESSION_KEY = "dls-ai-memory-session";
-
-function getMemoryUserKey() {
-  const currentUser = typeof getCurrentUser === "function" ? getCurrentUser() : null;
-  if (currentUser?.id) return `user:${currentUser.id}`;
-  let key = localStorage.getItem(MCP_MEMORY_SESSION_KEY);
-  if (!key) {
-    key = `guest:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
-    localStorage.setItem(MCP_MEMORY_SESSION_KEY, key);
-  }
-  return key;
-}
-
-async function mcpPost(path, body, options = {}) {
-  const headers = { "Content-Type": "application/json" };
-  if (typeof getAuthToken === "function" && getAuthToken()) {
-    headers.Authorization = `Bearer ${getAuthToken()}`;
-  }
-  const response = await fetch(path, {
-    method: options.method || "POST",
-    headers,
-    body: JSON.stringify(body || {}),
-  });
-  if (!response.ok) throw new Error(`MCP 请求失败：${response.status}`);
-  return response.json();
-}
-
-async function retrieveMcpMemory(query) {
-  try {
-    const payload = await mcpPost("/mcp/memory/retrieve", {
-      userKey: getMemoryUserKey(),
-      query,
-      limit: 6,
-    });
-    return (payload.memories || []).map((item) => item.text).filter(Boolean);
-  } catch (err) {
-    console.warn("MCP Memory 检索失败:", err);
-    return [];
-  }
-}
-
-async function writeMcpMemory(input, reply, dialect) {
-  const facts = [
-    `用户正在学习${DIALECTS[dialect]?.label || "方言"}，最近问题：${input.slice(0, 80)}`,
-  ];
-  const masteredMatch = reply.match(/掌握了?([^。\n]{1,24})/);
-  if (masteredMatch) facts.push(`用户可能已掌握：${masteredMatch[1]}`);
-  try {
-    await mcpPost("/mcp/memory/write", {
-      userKey: getMemoryUserKey(),
-      facts,
-      source: "chat",
-    });
-  } catch (err) {
-    console.warn("MCP Memory 写入失败:", err);
-  }
-}
-
-async function clearMcpMemory() {
-  try {
-    await mcpPost("/mcp/memory", { userKey: getMemoryUserKey() }, { method: "DELETE" });
-    showPixelToast("AI 长期记忆已清除");
-  } catch (err) {
-    showPixelToast(`清除失败：${getErrorMessage(err)}`);
-  }
-}
 
 function saveConversation() {
   const toSave = conversation.filter(m => m.role !== "system").slice(-MAX_CHAT_HISTORY);
@@ -1827,7 +2027,8 @@ function clearConversation() {
   conversation.length = 0;
   conversation.push({
     role: "system",
-    content: getTutorSystemPrompt(getSelectedChatDialect()),
+    content:
+      "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言",
   });
   chatHistoryEl.innerHTML = "";
   localStorage.removeItem(CHAT_STORAGE_KEY);
@@ -1837,25 +2038,26 @@ function clearConversation() {
 sendChatBtn.addEventListener("click", async () => {
   const input = chatInputEl.value.trim();
   if (!input) return;
-  const dialect = getSelectedChatDialect();
-  conversation[0].content = getTutorSystemPrompt(dialect);
   renderMessage("user", input);
   chatInputEl.value = "";
 
+  const requestedDialect = detectDialectFromText(input);
   try {
-    if (dialect === "minnan") await loadMinnanDictionary();
-    else await loadYueDictionary();
+    if (isRegionalDialect(requestedDialect)) {
+      await loadRegionalDialectDictionary(requestedDialect);
+    } else {
+      await loadYueDictionary();
+    }
   } catch {
     /* 词典失败时上下文字段为空 */
   }
-  const [memoryHints] = await Promise.all([retrieveMcpMemory(input)]);
-  const dictContext = extractDialectDictContext(input, dialect);
-  const memoryContext = memoryHints.length ? `[长期记忆]\n${memoryHints.join("\n")}` : "";
-  const contextBlocks = [
-    dictContext ? `[${DIALECTS[dialect].label}词典参考信息]\n${dictContext}` : "",
-    memoryContext,
-  ].filter(Boolean);
-  const enhancedInput = contextBlocks.length ? `${input}\n\n${contextBlocks.join("\n\n")}` : input;
+  const dictContext = isRegionalDialect(requestedDialect)
+    ? extractRegionalDialectContext(requestedDialect, input)
+    : extractYueDictContext(input);
+  const dictLabel = isRegionalDialect(requestedDialect)
+    ? `${REGIONAL_DIALECTS[requestedDialect].label}词典参考信息`
+    : "粤语词典参考信息";
+  const enhancedInput = dictContext ? `${input}\n\n[${dictLabel}]\n${dictContext}` : input;
   
   conversation.push({ role: "user", content: enhancedInput });
   saveConversation();
@@ -1866,7 +2068,6 @@ sendChatBtn.addEventListener("click", async () => {
     conversation.push({ role: "assistant", content: reply });
     renderMessage("assistant", reply);
     saveConversation();
-    writeMcpMemory(input, reply, dialect);
   } catch (err) {
     const errorMsg = getFriendlyError(err);
     renderMessage("assistant", errorMsg);
@@ -1874,6 +2075,18 @@ sendChatBtn.addEventListener("click", async () => {
     showLoading(false);
   }
 });
+
+function isMinnanQuery(text) {
+  return /闽南|閩南|台语|台語|臺語|臺灣話|台湾话|hokkien|minnan|tailo|白话字|白話字/i.test(text || "");
+}
+
+function detectDialectFromText(text) {
+  const raw = text || "";
+  if (/上海话|上海話|沪语|滬語|吴语|吳語|shanghai|shanghainese/i.test(raw)) return "shanghai";
+  if (/四川话|四川話|川话|川話|成都话|成都話|sichuan|sichuanese|chengdu/i.test(raw)) return "sichuan";
+  if (isMinnanQuery(raw)) return "minnan";
+  return "yue";
+}
 
 function extractYueDictContext(text) {
   if (!yueDictionary || yueDictionary.length === 0) return "";
@@ -1921,36 +2134,6 @@ function extractYueDictContext(text) {
   }).join("\n");
 }
 
-function extractMinnanDictContext(text) {
-  if (!minnanDictionary || minnanDictionary.length === 0) return "";
-  const keywords = ["闽南语", "台语", "台羅", "台罗", "白话字", "白話字", "发音", "读", "讲", "意思", "翻译", "食飯", "歹勢"];
-  const hasKeyword = keywords.some((keyword) => text.includes(keyword));
-  const chars = text.replace(/[^\u4e00-\u9fff]/g, "");
-  const matches = new Map();
-
-  for (const entry of minnanDictionary) {
-    if (
-      text.includes(entry.simp) ||
-      text.includes(entry.explanation) ||
-      (hasKeyword && [...chars].some((ch) => entry.simp.includes(ch) || entry.explanation.includes(ch)))
-    ) {
-      matches.set(`${entry.simp}|${entry.pinyin}`, entry);
-    }
-  }
-
-  return Array.from(matches.values())
-    .slice(0, 12)
-    .map((entry) => {
-      const alt = entry.alt ? ` / 白话字:${entry.alt}` : "";
-      return `${entry.simp} 台罗:${entry.pinyin}${alt} - ${entry.explanation}`;
-    })
-    .join("\n");
-}
-
-function extractDialectDictContext(text, dialect) {
-  return dialect === "minnan" ? extractMinnanDictContext(text) : extractYueDictContext(text);
-}
-
 function extractTranslateRAG(input, direction) {
   if (!yueDictionary || yueDictionary.length === 0) return "";
 
@@ -1985,25 +2168,56 @@ function extractTranslateRAG(input, direction) {
   }
 }
 
+function extractMinnanTranslateRAG(input, direction) {
+  const entries = extractMinnanDictContext(input);
+  if (!entries) return "";
+  if (direction === "zh_to_minnan") {
+    return `以下是输入文本中部分汉字的闽南语词典参考信息，翻译时请参考台罗、白话字和用法：\n${entries}`;
+  }
+  return `以下是输入文本中部分闽南语词条的参考信息，翻译时请参考释义：\n${entries}`;
+}
+
+function getDialectFromDirection(direction) {
+  const match = String(direction || "").match(/(?:zh_to_|^)(yue|minnan|shanghai|sichuan)(?:_to_zh)?/);
+  if (!match) return "yue";
+  return match[1];
+}
+
+function extractRegionalTranslateRAG(input, direction) {
+  const dialect = getDialectFromDirection(direction);
+  const meta = REGIONAL_DIALECTS[dialect];
+  if (!meta) return "";
+
+  const entries = extractRegionalDialectContext(dialect, input);
+  if (!entries) return "";
+  if (direction.startsWith("zh_to_")) {
+    return `以下是输入文本中部分汉字的${meta.label}词典参考信息，翻译时请参考注音和用法：\n${entries}`;
+  }
+  return `以下是输入文本中部分${meta.label}词条的参考信息，翻译时请参考释义：\n${entries}`;
+}
+
 translateBtn.addEventListener("click", async () => {
   const input = translateInputEl.value.trim();
   if (!input) return;
   translateOutputEl.textContent = "⏳ 翻译中...";
   translateBtn.disabled = true;
   const direction = directionEl.value;
-  const dialect = direction.includes("minnan") ? "minnan" : "yue";
+  const targetDialect = getDialectFromDirection(direction);
+  const isRegionalDirection = isRegionalDialect(targetDialect);
 
   try {
-    if (dialect === "minnan") await loadMinnanDictionary();
-    else await loadYueDictionary();
+    if (isRegionalDirection) {
+      await loadRegionalDialectDictionary(targetDialect);
+    } else {
+      await loadYueDictionary();
+    }
   } catch {
     /* 无词典则不加 RAG */
   }
   const systemPrompt = getTranslatePrompt(direction);
-  const ragContext =
-    dialect === "minnan"
-      ? extractMinnanDictContext(input)
-      : extractTranslateRAG(input, direction);
+  const ragContext = isRegionalDirection
+    ? extractRegionalTranslateRAG(input, direction)
+    : extractTranslateRAG(input, direction);
   const userContent = ragContext ? `${input}\n\n[${ragContext}]` : input;
 
   try {
@@ -2078,6 +2292,14 @@ yueDictSearchEl.addEventListener("keypress", (e) => {
   if (e.key === "Enter") {
     searchYueWord();
   }
+});
+
+dictDialectEl?.addEventListener("change", () => {
+  const dialectName = REGIONAL_DIALECTS[dictDialectEl.value]?.label || "粤语";
+  yueDictSearchEl.placeholder = `输入${dialectName}词汇查询...`;
+  yueDictResultEl.innerHTML = "";
+  noYueDictResultEl.style.display = "block";
+  noYueDictResultEl.textContent = `请输入${dialectName}词汇进行查询`;
 });
 
 const dailyQuotes = [
@@ -3188,13 +3410,13 @@ function renderAchievement() {
 }
 
 // ==================== Web Speech API 备选发音 ====================
-function speakWithWebSpeech(text, lang = "zh-HK") {
+function speakWithWebSpeech(text) {
   if (!window.speechSynthesis) return false;
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = lang;
+  utterance.lang = "zh-HK";
   utterance.rate = parseFloat(document.getElementById("pronSpeed")?.value || "1.0");
   const voices = speechSynthesis.getVoices();
-  const zhVoice = voices.find(v => v.lang === lang) || voices.find(v => v.lang.includes("zh") && (v.lang.includes("HK") || v.lang.includes("TW")));
+  const zhVoice = voices.find(v => v.lang.includes("zh") && (v.lang.includes("HK") || v.lang.includes("TW")));
   if (zhVoice) utterance.voice = zhVoice;
   speechSynthesis.speak(utterance);
   return true;
@@ -3636,12 +3858,6 @@ document.getElementById("importDataFile")?.addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 
-clearMcpMemoryBtn?.addEventListener("click", () => {
-  if (confirm("确定要清除 AI 长期记忆吗？这不会删除收藏、生词本和学习进度。")) {
-    clearMcpMemory();
-  }
-});
-
 // ==================== 增强已有功能 ====================
 
 // 增强：查询词典时自动添加到生词本
@@ -3649,21 +3865,35 @@ const originalSearchYueWord = searchYueWord;
 searchYueWord = async function() {
   const word = yueDictSearchEl.value.trim();
   if (!word) { alert("请输入要查询的词汇"); return; }
-  const dialect = dictDialectEl?.value === "minnan" ? "minnan" : "yue";
-  try {
-    if (dialect === "minnan") await loadMinnanDictionary();
-    else await loadYueDictionary();
-  } catch {
-    alert(`${DIALECTS[dialect].label}词典加载失败`);
+
+  const dialect = dictDialectEl?.value || "yue";
+  if (isRegionalDialect(dialect)) {
+    try {
+      await loadRegionalDialectDictionary(dialect);
+    } catch {
+      alert(`${REGIONAL_DIALECTS[dialect].label}词典加载失败`);
+      return;
+    }
+    const results = searchRegionalDialectEntries(dialect, word, { limit: 200 });
+    if (results.length > 0) {
+      renderRegionalDialectResult(dialect, results);
+      results.slice(0, 3).forEach(r => {
+        addToWordbook(r.simp, r.trad, r.pinyin, r.explanation);
+      });
+      trackDailyTask("query_dict", 1);
+      addXP(3);
+    } else {
+      renderRegionalDialectResult(dialect, []);
+      alert(`未找到词汇 "${word}" 的相关信息`);
+    }
     return;
   }
-  const results =
-    dialect === "minnan"
-      ? searchMinnanDictionaryEntries(word, { limit: 200 })
-      : searchYueDictionaryEntries(word, { limit: 200 });
+
+  try { await loadYueDictionary(); } catch { alert("粤语词典加载失败"); return; }
+  const results = searchYueDictionaryEntries(word, { limit: 200 });
   if (results.length > 0) {
     renderYueDictResult(results);
-    results.filter(r => (r.dialect || "yue") === "yue").slice(0, 3).forEach(r => {
+    results.slice(0, 3).forEach(r => {
       addToWordbook(r.simp, r.trad, r.pinyin, r.explanation);
     });
     trackDailyTask("query_dict", 1);

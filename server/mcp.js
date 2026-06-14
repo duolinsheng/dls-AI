@@ -5,6 +5,8 @@ const path = require("path");
 const DATA_DIR = path.join(__dirname, "..", "data");
 const MEMORY_DIR = path.join(DATA_DIR, "memory");
 const MINNAN_DICT_FILE = path.join(__dirname, "..", "main", "read", "minnan_dictionary.csv");
+const SHANGHAI_DICT_FILE = path.join(__dirname, "..", "main", "read", "shanghai_dictionary.csv");
+const SICHUAN_DICT_FILE = path.join(__dirname, "..", "main", "read", "sichuan_dictionary.csv");
 const YUE_DICT_FILE = path.join(__dirname, "..", "main", "read", "yyzd.csv");
 const MEMORY_SALT = process.env.MCP_MEMORY_SALT || "dls-ai-memory-v1";
 
@@ -13,7 +15,7 @@ let dictionariesCache = null;
 const tools = [
   {
     name: "get_user_progress",
-    description: "获取当前用户的学习进度摘要，用于个性化安排练习。",
+    description: "获取当前用户的学习进度摘要，用于个性化安排下一轮方言练习。",
     inputSchema: {
       type: "object",
       properties: {
@@ -27,17 +29,26 @@ const tools = [
   },
   {
     name: "search_dialect_dictionary",
-    description: "查询方言词典，返回词形、注音、释义和来源。",
+    description: "查询方言词典，返回词形、注音、释义、分类和数据来源。",
     inputSchema: {
       type: "object",
       properties: {
         dialect: {
           type: "string",
-          enum: ["yue", "minnan"],
-          description: "方言代码：yue=粤语，minnan=闽南语。",
+          enum: ["yue", "minnan", "shanghai", "sichuan"],
+          description: "方言代码：yue=粤语，minnan=闽南语/台语，shanghai=上海话，sichuan=四川话。",
         },
-        query: { type: "string", minLength: 1, description: "要查询的字词。" },
-        limit: { type: "integer", minimum: 1, maximum: 20, default: 8 },
+        query: {
+          type: "string",
+          minLength: 1,
+          description: "要查询的汉字、注音或释义关键词。",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 20,
+          default: 8,
+        },
       },
       required: ["dialect", "query"],
       additionalProperties: false,
@@ -45,13 +56,26 @@ const tools = [
   },
   {
     name: "generate_practice_quiz",
-    description: "基于方言词典动态生成选择题。",
+    description: "基于方言词典动态生成选择题，适合课前热身或错题复习。",
     inputSchema: {
       type: "object",
       properties: {
-        dialect: { type: "string", enum: ["yue", "minnan"], default: "yue" },
-        difficulty: { type: "string", enum: ["easy", "medium", "hard"], default: "medium" },
-        count: { type: "integer", minimum: 1, maximum: 10, default: 5 },
+        dialect: {
+          type: "string",
+          enum: ["yue", "minnan", "shanghai", "sichuan"],
+          default: "yue",
+        },
+        difficulty: {
+          type: "string",
+          enum: ["easy", "medium", "hard"],
+          default: "medium",
+        },
+        count: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          default: 5,
+        },
       },
       additionalProperties: false,
     },
@@ -79,7 +103,8 @@ function parseCsvLine(line) {
   const out = [];
   let value = "";
   let quoted = false;
-  for (let i = 0; i < line.length; i++) {
+
+  for (let i = 0; i < line.length; i += 1) {
     const ch = line[i];
     if (ch === '"') {
       if (quoted && line[i + 1] === '"') {
@@ -95,6 +120,7 @@ function parseCsvLine(line) {
       value += ch;
     }
   }
+
   out.push(value);
   return out.map((item) => item.trim());
 }
@@ -103,6 +129,7 @@ function loadMinnanDictionary() {
   const text = fs.existsSync(MINNAN_DICT_FILE)
     ? fs.readFileSync(MINNAN_DICT_FILE, "utf8")
     : "";
+
   return text
     .split(/\r?\n/)
     .slice(1)
@@ -120,8 +147,29 @@ function loadMinnanDictionary() {
     }));
 }
 
+function loadRegionalDictionary(filePath, dialect) {
+  const text = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+
+  return text
+    .split(/\r?\n/)
+    .slice(1)
+    .map((line) => parseCsvLine(line))
+    .filter((parts) => parts.length >= 4 && parts[0])
+    .map(([term, romanization, ipa, zh, category, source]) => ({
+      dialect,
+      term,
+      trad: term,
+      reading: romanization,
+      altReading: ipa,
+      meaning: zh,
+      category,
+      source,
+    }));
+}
+
 function loadYueDictionary() {
   const text = fs.existsSync(YUE_DICT_FILE) ? fs.readFileSync(YUE_DICT_FILE, "utf8") : "";
+
   return text
     .split(/\r?\n/)
     .slice(1)
@@ -145,6 +193,8 @@ function loadDictionaries() {
     dictionariesCache = {
       yue: loadYueDictionary(),
       minnan: loadMinnanDictionary(),
+      shanghai: loadRegionalDictionary(SHANGHAI_DICT_FILE, "shanghai"),
+      sichuan: loadRegionalDictionary(SICHUAN_DICT_FILE, "sichuan"),
     };
   }
   return dictionariesCache;
@@ -155,10 +205,13 @@ function normalizeText(text) {
 }
 
 function searchDialectDictionary(args = {}) {
-  const dialect = args.dialect === "minnan" ? "minnan" : "yue";
+  const dialect = ["yue", "minnan", "shanghai", "sichuan"].includes(args.dialect)
+    ? args.dialect
+    : "yue";
   const query = normalizeText(args.query);
   const limit = Math.min(Math.max(Number(args.limit) || 8, 1), 20);
   if (!query) return [];
+
   const entries = loadDictionaries()[dialect] || [];
   return entries
     .filter((entry) => {
@@ -178,10 +231,13 @@ function searchDialectDictionary(args = {}) {
 }
 
 function generatePracticeQuiz(args = {}) {
-  const dialect = args.dialect === "minnan" ? "minnan" : "yue";
+  const dialect = ["yue", "minnan", "shanghai", "sichuan"].includes(args.dialect)
+    ? args.dialect
+    : "yue";
   const count = Math.min(Math.max(Number(args.count) || 5, 1), 10);
   const entries = (loadDictionaries()[dialect] || []).filter((entry) => entry.term && entry.meaning);
   const pool = [...entries].sort(() => Math.random() - 0.5).slice(0, Math.max(count * 4, count));
+
   return pool.slice(0, count).map((entry, index) => {
     const distractors = pool
       .filter((item) => item.term !== entry.term)
@@ -191,8 +247,9 @@ function generatePracticeQuiz(args = {}) {
     return {
       question: `「${entry.term}」的意思是什么？${entry.reading ? `（${entry.reading}）` : ""}`,
       options,
-      correct: options.indexOf(entry.meaning),
+      correct: Math.max(0, options.indexOf(entry.meaning)),
       answer: entry.meaning,
+      dialect,
     };
   });
 }
@@ -246,6 +303,7 @@ function retrieveMemory(req, body = {}) {
     })
     .sort((a, b) => b.score - a.score || b.updatedAt - a.updatedAt)
     .slice(0, Math.min(Math.max(Number(body.limit) || 6, 1), 12));
+
   return { memories, latencyMs: Date.now() - startedAt };
 }
 
@@ -255,6 +313,7 @@ function writeMemory(req, body = {}) {
   const incoming = Array.isArray(body.facts) ? body.facts : [body.fact || body.text || ""];
   const now = Date.now();
   const existing = new Map((store.memories || []).map((item) => [item.text, item]));
+
   for (const raw of incoming) {
     const text = sanitizeMemoryText(raw);
     if (!text || text.length < 4) continue;
@@ -265,6 +324,7 @@ function writeMemory(req, body = {}) {
       updatedAt: now,
     });
   }
+
   const memories = Array.from(existing.values())
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 200);
@@ -304,7 +364,11 @@ function readRequestBody(req) {
 }
 
 function sendJson(res, status, payload) {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+  });
   res.end(JSON.stringify(payload));
 }
 
@@ -316,7 +380,9 @@ async function handleMcpRequest(req, res, requestPath) {
 
     if (requestPath === "/mcp/call" && req.method === "POST") {
       const body = await readRequestBody(req);
-      return sendJson(res, 200, { result: callTool(body.tool || body.name, body.arguments || body.args || {}) });
+      return sendJson(res, 200, {
+        result: callTool(body.tool || body.name, body.arguments || body.args || {}),
+      });
     }
 
     if (requestPath === "/mcp/memory/retrieve" && req.method === "POST") {
@@ -365,12 +431,18 @@ async function handleMcpRequest(req, res, requestPath) {
           },
         });
       }
-      return sendJson(res, 404, { jsonrpc: "2.0", id: body.id, error: { code: -32601, message: "Method not found" } });
+      return sendJson(res, 404, {
+        jsonrpc: "2.0",
+        id: body.id,
+        error: { code: -32601, message: "Method not found" },
+      });
     }
 
     return sendJson(res, 404, { error: "Not Found" });
   } catch (err) {
-    if (err.message === "Invalid JSON") return sendJson(res, 400, { error: "请求体不是有效 JSON" });
+    if (err.message === "Invalid JSON") {
+      return sendJson(res, 400, { error: "请求体不是有效 JSON" });
+    }
     console.error("[McpError]", err);
     return sendJson(res, 500, { error: "MCP server error" });
   }

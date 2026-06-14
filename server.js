@@ -28,7 +28,7 @@ const proxy = httpProxy.createProxyServer({
 
 proxy.on("error", (err, req, res) => {
   console.error(`[ProxyError] ${req.method} ${req.url}`, err.message);
-  res.writeHead(502);
+  writeHeadWithSecurity(req, res, 502);
   res.end("Bad Gateway");
 });
 
@@ -52,16 +52,6 @@ const STATIC_CACHE_MAX_AGE = {
   ".csv": 3600,
   ".html": 300,
 };
-
-function getCacheControl(ext) {
-  if (ext in STATIC_CACHE_MAX_AGE) {
-    return `public, max-age=${STATIC_CACHE_MAX_AGE[ext]}`;
-  }
-  if (ext && ext !== ".html") {
-    return "public, max-age=86400";
-  }
-  return null;
-}
 
 function isSecureRequest(req) {
   return Boolean(req.socket.encrypted) || String(req.headers["x-forwarded-proto"] || "").split(",")[0] === "https";
@@ -92,8 +82,12 @@ function buildSecurityHeaders(req) {
   return headers;
 }
 
-function sendPlain(res, status, text, extraHeaders = {}) {
-  res.writeHead(status, {
+function writeHeadWithSecurity(req, res, status, headers = {}) {
+  res.writeHead(status, { ...buildSecurityHeaders(req), ...headers });
+}
+
+function sendPlain(req, res, status, text, extraHeaders = {}) {
+  writeHeadWithSecurity(req, res, status, {
     "Content-Type": "text/plain; charset=utf-8",
     ...extraHeaders,
   });
@@ -106,6 +100,16 @@ function redirectToHttps(req, res) {
     Location: `https://${host}${req.url || "/"}`,
   });
   res.end();
+}
+
+function getCacheControl(ext) {
+  if (ext in STATIC_CACHE_MAX_AGE) {
+    return `public, max-age=${STATIC_CACHE_MAX_AGE[ext]}`;
+  }
+  if (ext && ext !== ".html") {
+    return "public, max-age=86400";
+  }
+  return null;
 }
 
 function decodePathname(pathname) {
@@ -132,7 +136,7 @@ function handleRequest(req, res) {
   }
 
   const originalWriteHead = res.writeHead;
-  res.writeHead = function writeHeadWithSecurity(statusCode, reasonPhrase, headers) {
+  res.writeHead = function writeHeadWithDefaultSecurity(statusCode, reasonPhrase, headers) {
     const securityHeaders = buildSecurityHeaders(req);
     if (typeof reasonPhrase === "string") {
       return originalWriteHead.call(this, statusCode, reasonPhrase, {
@@ -161,6 +165,7 @@ function handleRequest(req, res) {
 
   if (requestPath === "/health/security") {
     sendPlain(
+      req,
       res,
       200,
       JSON.stringify({
@@ -169,7 +174,7 @@ function handleRequest(req, res) {
         hsts: isSecureRequest(req),
         tls: "TLS 1.2/1.3 when SSL_CERT_PATH and SSL_KEY_PATH are configured",
       }),
-      { "Content-Type": "application/json; charset=utf-8", ...buildSecurityHeaders(req) },
+      { "Content-Type": "application/json; charset=utf-8" },
     );
     return;
   }
@@ -190,7 +195,7 @@ function handleRequest(req, res) {
   const filePath = path.join(baseRoot, relativePath);
 
   if (!isPathInsideRoot(baseRoot, filePath)) {
-    sendPlain(res, 403, "Forbidden", buildSecurityHeaders(req));
+    sendPlain(req, res, 403, "Forbidden");
     return;
   }
 
@@ -200,19 +205,19 @@ function handleRequest(req, res) {
   fs.readFile(filePath, (err, content) => {
     if (err) {
       if (err.code === "ENOENT") {
-        sendPlain(res, 404, "Not Found", buildSecurityHeaders(req));
+        sendPlain(req, res, 404, "Not Found");
       } else {
-        sendPlain(res, 500, "Server Error", buildSecurityHeaders(req));
+        sendPlain(req, res, 500, "Server Error");
       }
       return;
     }
 
-    const headers = { "Content-Type": contentType, ...buildSecurityHeaders(req) };
+    const headers = { "Content-Type": contentType };
     const cacheControl = getCacheControl(ext);
     if (cacheControl) {
       headers["Cache-Control"] = cacheControl;
     }
-    res.writeHead(200, headers);
+    writeHeadWithSecurity(req, res, 200, headers);
     res.end(content);
   });
 }
@@ -243,13 +248,16 @@ if (SSL_CERT_PATH && SSL_KEY_PATH) {
         "TLS_AES_128_GCM_SHA256",
         "ECDHE-ECDSA-AES256-GCM-SHA384",
         "ECDHE-RSA-AES256-GCM-SHA384",
+        "ECDHE-ECDSA-CHACHA20-POLY1305",
+        "ECDHE-RSA-CHACHA20-POLY1305",
         "ECDHE-ECDSA-AES128-GCM-SHA256",
         "ECDHE-RSA-AES128-GCM-SHA256",
       ].join(":"),
-      honorCipherOrder: true,
+      honorCipherOrder: false,
     },
     handleRequest,
   );
+
   httpsServer.listen(HTTPS_PORT, () => {
     console.log(`HTTPS server running at https://127.0.0.1:${HTTPS_PORT}/`);
   });
