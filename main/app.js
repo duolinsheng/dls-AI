@@ -36,6 +36,9 @@ const yueDictSearchEl = document.getElementById("yueDictSearch");
 const yueDictSearchBtn = document.getElementById("yueDictSearchBtn");
 const yueDictResultEl = document.getElementById("yueDictResult");
 const noYueDictResultEl = document.getElementById("noYueDictResult");
+const phraseDialectEl = document.getElementById("phraseDialect");
+const dailyDialectEl = document.getElementById("dailyDialect");
+const quizDialectEl = document.getElementById("quizDialect");
 let currentFavCategory = "all";
 
 const PROVIDER_PRESETS = {
@@ -217,24 +220,66 @@ const localSichuanToZhMap = Object.fromEntries(
   Object.entries(localZhToSichuanMap).map(([zh, sichuan]) => [sichuan, zh]),
 );
 
-const REGIONAL_DIALECTS = {
+const DIALECTS = {
+  yue: {
+    label: "粤语",
+    readingLabel: "粤拼",
+    altLabel: "",
+    speechLang: "zh-HK",
+    dictionaryLabel: "粤语词典",
+  },
   minnan: {
     label: "闽南语",
-    file: "read/minnan_dictionary.csv",
     readingLabel: "台罗",
     altLabel: "白话字",
+    speechLang: "zh-TW",
+    dictionaryLabel: "闽南语词典",
   },
   shanghai: {
     label: "上海话",
-    file: "read/shanghai_dictionary.csv",
     readingLabel: "罗马化",
     altLabel: "IPA",
+    speechLang: "zh-CN",
+    dictionaryLabel: "上海话词典",
   },
   sichuan: {
     label: "四川话",
-    file: "read/sichuan_dictionary.csv",
     readingLabel: "读音提示",
     altLabel: "IPA",
+    speechLang: "zh-CN",
+    dictionaryLabel: "四川话词典",
+  },
+  unknown: {
+    label: "该方言",
+    readingLabel: "注音/读音",
+    altLabel: "",
+    speechLang: "zh-CN",
+    dictionaryLabel: "方言词典",
+  },
+};
+
+function getDialectMeta(dialect) {
+  return DIALECTS[dialect] || DIALECTS.yue;
+}
+
+const REGIONAL_DIALECTS = {
+  minnan: {
+    label: DIALECTS.minnan.label,
+    file: "read/minnan_dictionary.csv",
+    readingLabel: DIALECTS.minnan.readingLabel,
+    altLabel: DIALECTS.minnan.altLabel,
+  },
+  shanghai: {
+    label: DIALECTS.shanghai.label,
+    file: "read/shanghai_dictionary.csv",
+    readingLabel: DIALECTS.shanghai.readingLabel,
+    altLabel: DIALECTS.shanghai.altLabel,
+  },
+  sichuan: {
+    label: DIALECTS.sichuan.label,
+    file: "read/sichuan_dictionary.csv",
+    readingLabel: DIALECTS.sichuan.readingLabel,
+    altLabel: DIALECTS.sichuan.altLabel,
   },
 };
 
@@ -1016,7 +1061,7 @@ function renderMinnanDictResult(results) {
         <p class="explanation">${item.explanation || "暂无释义"}</p>
         <p class="example">来源：${item.source || "本地整理"}</p>
         <div class="audio-action">
-          <button class="play-btn" onclick="speakWithWebSpeech('${item.simp.replace(/'/g, "\\'")}')">🔊 浏览器朗读</button>
+          <button class="play-btn" disabled title="暂无标准闽南语音频">暂无标准音频</button>
         </div>
       </div>
     `)
@@ -1166,7 +1211,7 @@ function renderRegionalDialectResult(dialect, results) {
         <p class="explanation">${item.explanation || "暂无释义"}</p>
         <p class="example">来源：${item.source || "本地整理"}</p>
         <div class="audio-action">
-          <button class="play-btn" onclick="speakWithWebSpeech('${item.simp.replace(/'/g, "\\'")}')">🔊 浏览器朗读</button>
+          <button class="play-btn" disabled title="暂无标准${meta.label}音频">暂无标准音频</button>
         </div>
       </div>
     `)
@@ -1705,7 +1750,7 @@ function renderTranslateHistory() {
         <p style="margin: 4px 0; color: var(--accent); font-weight: 500;">${item.output}</p>
       </div>
       <div class="history-item-actions">
-        <button class="icon-btn" title="朗读" onclick="speakText('${item.output.replace(/'/g, "\\'")}')">🔊</button>
+        <button class="icon-btn" title="朗读" onclick="speakTranslateOutput('${item.output.replace(/'/g, "\\'")}', '${item.direction || ""}')">🔊</button>
         <button class="icon-btn" title="复制" onclick="copyText('${item.output.replace(/'/g, "\\'")}')">📋</button>
         <button class="icon-btn" title="收藏" onclick="addToFavorites('${item.input.replace(/'/g, "\\'")}', '${item.output.replace(/'/g, "\\'")}', '${item.direction}')">⭐</button>
       </div>
@@ -1892,7 +1937,7 @@ async function searchYueWord() {
     if (results.length > 0) {
       renderRegionalDialectResult(dialect, results);
       results.slice(0, 3).forEach((r) => {
-        addToWordbook(r.simp, r.trad, r.pinyin, r.explanation);
+        addToWordbook(r.simp, r.trad, r.pinyin, r.explanation, dialect);
       });
       trackDailyTask("query_dict", 1);
       addXP(3);
@@ -2183,6 +2228,41 @@ function getDialectFromDirection(direction) {
   return match[1];
 }
 
+function getOutputDialectFromDirection(direction) {
+  const raw = String(direction || "");
+  if (raw.endsWith("_to_zh")) return "zh";
+  return getDialectFromDirection(raw);
+}
+
+function canPlayStandardAudioForDialect(dialect) {
+  return dialect === "yue";
+}
+
+async function speakTextForDialect(text, dialect = "yue", reading = "") {
+  if (!text) return false;
+  if (!canPlayStandardAudioForDialect(dialect)) {
+    showDialectAudioUnavailable(dialect, reading || text);
+    return false;
+  }
+  await speakText(text);
+  return true;
+}
+
+async function speakTranslateOutput(text, direction) {
+  const outputDialect = getOutputDialectFromDirection(direction);
+  if (outputDialect === "zh") {
+    if (speakWithWebSpeech(text, "zh-CN")) return true;
+    showDialectAudioUnavailable("yue", "普通话朗读不可用");
+    return false;
+  }
+  return speakTextForDialect(text, outputDialect);
+}
+
+async function speakFavoriteText(text, direction = "", dialect = "") {
+  if (direction) return speakTranslateOutput(text, direction);
+  return speakTextForDialect(text, dialect || "yue");
+}
+
 function extractRegionalTranslateRAG(input, direction) {
   const dialect = getDialectFromDirection(direction);
   const meta = REGIONAL_DIALECTS[dialect];
@@ -2244,7 +2324,7 @@ clearTranslateBtn.addEventListener("click", () => {
 
 speakOutputBtn.addEventListener("click", () => {
   const text = translateOutputEl.textContent.trim();
-  speakText(text);
+  speakTranslateOutput(text, directionEl.value);
 });
 
 copyOutputBtn.addEventListener("click", () => {
@@ -2295,7 +2375,7 @@ yueDictSearchEl.addEventListener("keypress", (e) => {
 });
 
 dictDialectEl?.addEventListener("change", () => {
-  const dialectName = REGIONAL_DIALECTS[dictDialectEl.value]?.label || "粤语";
+  const dialectName = getDialectMeta(dictDialectEl.value).label;
   yueDictSearchEl.placeholder = `输入${dialectName}词汇查询...`;
   yueDictResultEl.innerHTML = "";
   noYueDictResultEl.style.display = "block";
@@ -2388,6 +2468,142 @@ const commonPhrases = {
   ],
 };
 
+const dialectLearningData = {
+  yue: {
+    quotes: dailyQuotes,
+    phrases: commonPhrases,
+    quiz: null,
+  },
+  minnan: {
+    quotes: [
+      { yue: "你好！", zh: "你好！", pinyin: "li2 ho2" },
+      { yue: "多謝你！", zh: "谢谢你！", pinyin: "to-sia7 li2" },
+      { yue: "歹勢！", zh: "不好意思！", pinyin: "phai2-se3" },
+      { yue: "今仔日天氣真好。", zh: "今天天气真好。", pinyin: "kin-a2-jit8 thinn-khi3 tsin ho2" },
+      { yue: "你食飽未？", zh: "你吃饱了吗？", pinyin: "li2 tsiah8 pa2 bue7" },
+      { yue: "咱來去食飯。", zh: "我们去吃饭。", pinyin: "lan2 lai5-khi3 tsiah8-png7" },
+      { yue: "請問佗位？", zh: "请问在哪里？", pinyin: "tshiann2-mng7 toh-ui7" },
+      { yue: "再會！", zh: "再见！", pinyin: "tsai3-hue7" },
+    ],
+    phrases: {
+      greeting: [
+        { yue: "你好！", zh: "你好！", pinyin: "li2 ho2" },
+        { yue: "你食飽未？", zh: "你吃饱了吗？", pinyin: "li2 tsiah8 pa2 bue7" },
+        { yue: "好久無看著！", zh: "好久不见！", pinyin: "ho2-ku2 bo5 khuann3-tioh8" },
+        { yue: "再會！", zh: "再见！", pinyin: "tsai3-hue7" },
+      ],
+      daily: [
+        { yue: "多謝你！", zh: "谢谢你！", pinyin: "to-sia7 li2" },
+        { yue: "歹勢！", zh: "不好意思！", pinyin: "phai2-se3" },
+        { yue: "無問題！", zh: "没问题！", pinyin: "bo5 bun7-te5" },
+        { yue: "請問！", zh: "请问！", pinyin: "tshiann2-mng7" },
+      ],
+      food: [
+        { yue: "好食！", zh: "好吃！", pinyin: "ho2 tsiah8" },
+        { yue: "我欲食飯。", zh: "我要吃饭。", pinyin: "gua2 beh4 tsiah8-png7" },
+        { yue: "幾若錢？", zh: "多少钱？", pinyin: "kui2-na7 tsinn5" },
+        { yue: "傷貴矣！", zh: "太贵了！", pinyin: "siunn kui3--ah" },
+      ],
+      shopping: [
+        { yue: "我欲買這个。", zh: "我要买这个。", pinyin: "gua2 beh4 bue2 tsit e5" },
+        { yue: "有較大个無？", zh: "有大一点的吗？", pinyin: "u7 khah tua7 e5 bo5" },
+        { yue: "較俗咧。", zh: "便宜一点吧。", pinyin: "khah siok8 leh" },
+        { yue: "我先看覓。", zh: "我先看看。", pinyin: "gua2 sing khuann3 mai7" },
+      ],
+      emotion: [
+        { yue: "我真歡喜！", zh: "我很开心！", pinyin: "gua2 tsin huann-hi2" },
+        { yue: "我真想你。", zh: "我很想你。", pinyin: "gua2 tsin siunn7 li2" },
+        { yue: "我真艱苦。", zh: "我很难受。", pinyin: "gua2 tsin kan-khoo2" },
+        { yue: "我真愛睏。", zh: "我很困。", pinyin: "gua2 tsin ai3-khun3" },
+      ],
+    },
+  },
+  shanghai: {
+    quotes: [
+      { yue: "侬好！", zh: "你好！", pinyin: "nong ho" },
+      { yue: "谢谢侬！", zh: "谢谢你！", pinyin: "zia zia nong" },
+      { yue: "今朝天气老好。", zh: "今天天气很好。", pinyin: "cin tsau thi ci lau hau" },
+      { yue: "阿拉一道去吃饭。", zh: "我们一起去吃饭。", pinyin: "aq la iq dau chi ve" },
+      { yue: "侬哪能啦？", zh: "你怎么样？", pinyin: "nong na nen la" },
+      { yue: "再会！", zh: "再见！", pinyin: "tse we" },
+    ],
+    phrases: {
+      greeting: [
+        { yue: "侬好！", zh: "你好！", pinyin: "nong ho" },
+        { yue: "侬哪能啦？", zh: "你怎么样？", pinyin: "nong na nen la" },
+        { yue: "好久勿见！", zh: "好久不见！", pinyin: "hau cieu veq ci" },
+        { yue: "再会！", zh: "再见！", pinyin: "tse we" },
+      ],
+      daily: [
+        { yue: "谢谢侬！", zh: "谢谢你！", pinyin: "zia zia nong" },
+        { yue: "对勿起！", zh: "对不起！", pinyin: "te veq chi" },
+        { yue: "勿要紧。", zh: "不要紧。", pinyin: "veq iau cin" },
+        { yue: "慢慢走。", zh: "慢慢走。", pinyin: "me me tseu" },
+      ],
+      food: [
+        { yue: "蛮好吃！", zh: "很好吃！", pinyin: "me ho chi" },
+        { yue: "阿拉去吃饭。", zh: "我们去吃饭。", pinyin: "aq la chi ve" },
+        { yue: "几钿？", zh: "多少钱？", pinyin: "ci di" },
+        { yue: "忒贵哉！", zh: "太贵了！", pinyin: "theq kue ze" },
+      ],
+      shopping: [
+        { yue: "阿拉想买格个。", zh: "我想买这个。", pinyin: "aq la shian ma gaq geq" },
+        { yue: "有大点个伐？", zh: "有大一点的吗？", pinyin: "yeu du di geq vaq" },
+        { yue: "便宜点好伐？", zh: "便宜一点好吗？", pinyin: "bi yi di hau vaq" },
+        { yue: "阿拉先看看。", zh: "我先看看。", pinyin: "aq la shi khe khe" },
+      ],
+      emotion: [
+        { yue: "阿拉老开心。", zh: "我很开心。", pinyin: "aq la lau khe shin" },
+        { yue: "阿拉老想侬。", zh: "我很想你。", pinyin: "aq la lau shian nong" },
+        { yue: "阿拉老累。", zh: "我很累。", pinyin: "aq la lau le" },
+        { yue: "阿拉老欢喜侬。", zh: "我很喜欢你。", pinyin: "aq la lau hue xi nong" },
+      ],
+    },
+  },
+  sichuan: {
+    quotes: [
+      { yue: "你好！", zh: "你好！", pinyin: "ni hao" },
+      { yue: "要得！", zh: "可以/好的！", pinyin: "yao de" },
+      { yue: "巴适得板！", zh: "非常舒服/很好！", pinyin: "ba shi de ban" },
+      { yue: "今天天气安逸。", zh: "今天天气舒服。", pinyin: "jin tian tian qi an yi" },
+      { yue: "你吃饭没有？", zh: "你吃饭了吗？", pinyin: "ni chi fan mei you" },
+      { yue: "慢慢耍哈。", zh: "慢慢玩/慢走。", pinyin: "man man shua ha" },
+    ],
+    phrases: {
+      greeting: [
+        { yue: "你好！", zh: "你好！", pinyin: "ni hao" },
+        { yue: "吃饭没有？", zh: "吃饭了吗？", pinyin: "chi fan mei you" },
+        { yue: "好久没见咯！", zh: "好久不见！", pinyin: "hao jiu mei jian lo" },
+        { yue: "拜拜！", zh: "再见！", pinyin: "bai bai" },
+      ],
+      daily: [
+        { yue: "要得！", zh: "可以/好的！", pinyin: "yao de" },
+        { yue: "莫得问题！", zh: "没问题！", pinyin: "mo de wen ti" },
+        { yue: "不好意思哈！", zh: "不好意思！", pinyin: "bu hao yi si ha" },
+        { yue: "慢慢走哈。", zh: "慢慢走。", pinyin: "man man zou ha" },
+      ],
+      food: [
+        { yue: "巴适！", zh: "很好/舒服！", pinyin: "ba shi" },
+        { yue: "安逸！", zh: "舒服/惬意！", pinyin: "an yi" },
+        { yue: "好多钱？", zh: "多少钱？", pinyin: "hao duo qian" },
+        { yue: "少放点辣。", zh: "少放一点辣。", pinyin: "shao fang dian la" },
+      ],
+      shopping: [
+        { yue: "这个好多钱？", zh: "这个多少钱？", pinyin: "zhe ge hao duo qian" },
+        { yue: "便宜点嘛。", zh: "便宜一点吧。", pinyin: "pian yi dian ma" },
+        { yue: "我先看哈。", zh: "我先看看。", pinyin: "wo xian kan ha" },
+        { yue: "有没有大点的？", zh: "有没有大一点的？", pinyin: "you mei you da dian de" },
+      ],
+      emotion: [
+        { yue: "我好高兴哦！", zh: "我很开心！", pinyin: "wo hao gao xing o" },
+        { yue: "我有点恼火。", zh: "我有点生气/烦。", pinyin: "wo you dian nao huo" },
+        { yue: "我累惨了。", zh: "我很累。", pinyin: "wo lei can le" },
+        { yue: "这个太安逸了。", zh: "这个太舒服了。", pinyin: "zhe ge tai an yi le" },
+      ],
+    },
+  },
+};
+
 const quizQuestions = {
   easy: [
     { question: "「早晨」是什么意思？", options: ["早上好", "晚上好", "中午好", "再见"], correct: 0 },
@@ -2427,16 +2643,129 @@ const quizQuestions = {
   ],
 };
 
+function flattenDialectPhraseItems(dialect) {
+  const phrases = getDialectPhrases(dialect);
+  return Object.values(phrases).flat().filter((item) => item.yue && item.zh);
+}
+
+function buildQuizFromPhraseItems(dialect, difficulty) {
+  const meta = getDialectMeta(dialect);
+  const items = flattenDialectPhraseItems(dialect);
+  const pool = [...items].sort(() => Math.random() - 0.5);
+  const count = Math.min(10, pool.length);
+  return pool.slice(0, count).map((item, index) => {
+    const question =
+      difficulty === "easy"
+        ? `「${item.yue}」是什么意思？`
+        : `下面哪项是「${item.yue}」的标准中文意思？${item.pinyin ? `（${meta.readingLabel}：${item.pinyin}）` : ""}`;
+    const distractors = pool
+      .filter((other) => other.zh !== item.zh)
+      .slice(index + 1)
+      .concat(pool.filter((other) => other.zh !== item.zh).slice(0, index + 1))
+      .slice(0, 3)
+      .map((other) => other.zh);
+    const options = [item.zh, ...distractors].slice(0, 4).sort(() => Math.random() - 0.5);
+    return {
+      question,
+      options,
+      correct: Math.max(0, options.indexOf(item.zh)),
+    };
+  });
+}
+
+function getLocalQuizQuestions(dialect, difficulty) {
+  if (dialect === "yue") {
+    return [...(quizQuestions[difficulty] || quizQuestions.medium)]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 10);
+  }
+  return buildQuizFromPhraseItems(dialect, difficulty);
+}
+
 let currentPhraseCategory = "greeting";
 let currentQuiz = [];
 let currentQuestionIndex = 0;
 let quizScore = 0;
 let quizDifficulty = "medium";
 
+function getSelectedDialect(selectEl, fallback = "yue") {
+  return DIALECTS[selectEl?.value] ? selectEl.value : fallback;
+}
+
+function getCurrentDailyDialect() {
+  return getSelectedDialect(dailyDialectEl, "yue");
+}
+
+function getCurrentPhraseDialect() {
+  return getSelectedDialect(phraseDialectEl, "yue");
+}
+
+function getCurrentQuizDialect() {
+  return getSelectedDialect(quizDialectEl, "yue");
+}
+
+function getDialectQuotes(dialect = getCurrentDailyDialect()) {
+  return dialectLearningData[dialect]?.quotes || dailyQuotes;
+}
+
+function getDialectPhrases(dialect = getCurrentPhraseDialect()) {
+  return dialectLearningData[dialect]?.phrases || commonPhrases;
+}
+
+function inferKnownLearningDialect(text = "") {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  for (const [dialect, data] of Object.entries(dialectLearningData)) {
+    const inQuotes = (data.quotes || []).some((item) => item.yue === raw || item.zh === raw);
+    if (inQuotes) return dialect;
+    const phraseItems = Object.values(data.phrases || {}).flat();
+    if (phraseItems.some((item) => item.yue === raw || item.zh === raw)) return dialect;
+  }
+  return "";
+}
+
+function showDialectAudioUnavailable(dialect = "yue", reading = "") {
+  const meta = getDialectMeta(dialect);
+  const readingText = reading ? `请参考${meta.readingLabel}：${reading}` : `请参考页面上的${meta.readingLabel || "注音"}`;
+  const message = `${meta.label}暂无标准音频，${readingText}`;
+  if (typeof showPixelToast === "function") {
+    showPixelToast(message);
+  } else {
+    alert(message);
+  }
+}
+
+function speakLearningItem(text, pinyin = "", dialect = "yue") {
+  if (dialect === "yue" && pinyin) {
+    playYuePinyin(pinyin);
+    return true;
+  }
+  showDialectAudioUnavailable(dialect, pinyin || text);
+  return false;
+}
+
+function syncLearningDialectUI() {
+  const dailyDialect = getCurrentDailyDialect();
+  const phraseDialect = getCurrentPhraseDialect();
+  const quizDialect = getCurrentQuizDialect();
+  const dailyMeta = getDialectMeta(dailyDialect);
+  const phraseMeta = getDialectMeta(phraseDialect);
+  const quizMeta = getDialectMeta(quizDialect);
+
+  document.getElementById("homeDailyTitle").textContent = `📅 今日${dailyMeta.label}`;
+  document.getElementById("dailyTitle").textContent = `📅 每日一句${dailyMeta.label}`;
+  document.getElementById("phrasesTitle").textContent = `📝 常用${phraseMeta.label}短语`;
+  document.getElementById("quizTitle").textContent = `🎯 ${quizMeta.label}学习测验`;
+  document.getElementById("quizIntro").textContent = `准备好测试你的${quizMeta.label}水平了吗？`;
+  document.getElementById("customQuoteYue").placeholder = `${dailyMeta.label}句子`;
+  document.getElementById("customQuotePinyin").placeholder = `${dailyMeta.readingLabel || "注音/读音"}（可选）`;
+}
+
 function getDailyQuote() {
   const today = new Date();
   const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
-  return dailyQuotes[dayOfYear % dailyQuotes.length];
+  const quotes = getDialectQuotes();
+  return quotes[dayOfYear % quotes.length];
 }
 
 function renderDailyQuote() {
@@ -2451,12 +2780,16 @@ function renderDailyQuote() {
 }
 
 async function playDailyQuote() {
+  const dialect = getCurrentDailyDialect();
+  const quote = getDailyQuote();
+  if (dialect !== "yue") {
+    return speakLearningItem(quote.yue, quote.pinyin, dialect);
+  }
   try {
     await loadYueDictionary();
   } catch {
     /* findYueWords 在无词典时为空 */
   }
-  const quote = getDailyQuote();
   const words = quote.yue.replace(/[！？，。、]/g, "").split("");
   words.forEach((word, index) => {
     setTimeout(() => {
@@ -2466,11 +2799,13 @@ async function playDailyQuote() {
       }
     }, index * 800);
   });
+  return true;
 }
 
 function renderPhraseList(category) {
   const phraseList = document.getElementById("phraseList");
-  const phrases = commonPhrases[category] || [];
+  const dialect = getCurrentPhraseDialect();
+  const phrases = getDialectPhrases(dialect)[category] || [];
   
   phraseList.innerHTML = phrases.map((phrase, index) => `
     <div class="phrase-item">
@@ -2480,7 +2815,7 @@ function renderPhraseList(category) {
         <div class="pinyin">${phrase.pinyin}</div>
       </div>
       <div class="phrase-actions">
-        <button class="icon-btn phrase-play-btn" data-pinyin="${phrase.pinyin}" title="播放发音">🔊</button>
+        <button class="icon-btn phrase-play-btn" data-index="${index}" data-pinyin="${phrase.pinyin}" title="播放发音">🔊</button>
         <button class="icon-btn phrase-fav-btn" data-phrase="${phrase.yue}" title="收藏">⭐</button>
       </div>
     </div>
@@ -2488,23 +2823,25 @@ function renderPhraseList(category) {
   
   phraseList.querySelectorAll(".phrase-play-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      playYuePinyin(btn.dataset.pinyin);
-      trackAudioPlayed();
+      const phrase = phrases[Number(btn.dataset.index)] || {};
+      const didPlay = speakLearningItem(phrase.yue, phrase.pinyin, dialect);
+      if (didPlay) trackAudioPlayed();
       trackPhraseLearned();
     });
   });
   
   phraseList.querySelectorAll(".phrase-fav-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      addToFavorites(btn.dataset.phrase, "");
+      addToFavorites(btn.dataset.phrase, "", "", "短语", dialect);
       alert("已添加到收藏夹！");
     });
   });
 }
 
 function startQuiz() {
+  const dialect = getCurrentQuizDialect();
   quizDifficulty = document.getElementById("quizDifficulty").value;
-  currentQuiz = [...quizQuestions[quizDifficulty]].sort(() => Math.random() - 0.5).slice(0, 10);
+  currentQuiz = getLocalQuizQuestions(dialect, quizDifficulty);
   currentQuestionIndex = 0;
   quizScore = 0;
   
@@ -2573,7 +2910,7 @@ function showQuizResult() {
   const percentage = Math.round((quizScore / currentQuiz.length) * 100);
   let message = "";
   if (percentage >= 90) {
-    message = "🎉 太棒了！你的粤语水平非常好！";
+    message = `🎉 太棒了！你的${getDialectMeta(getCurrentQuizDialect()).label}水平非常好！`;
   } else if (percentage >= 70) {
     message = "👍 不错！继续加油！";
   } else if (percentage >= 50) {
@@ -2604,13 +2941,16 @@ function saveQuizScore(score, total, difficulty) {
   updateProgressStats();
 }
 
-function getRandomDictEntries(count) {
-  if (!yueDictionary || yueDictionary.length === 0) return [];
-  const shuffled = [...yueDictionary].sort(() => Math.random() - 0.5);
+function getRandomDictEntries(count, dialect = "yue") {
+  const source = dialect === "yue" ? yueDictionary : getRegionalDialectEntries(dialect);
+  if (!source || source.length === 0) return [];
+  const shuffled = [...source].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count).filter(e => e.pinyin && e.explanation);
 }
 
 async function generateAIQuiz() {
+  const dialect = getCurrentQuizDialect();
+  const meta = getDialectMeta(dialect);
   const difficulty = document.getElementById("quizDifficulty").value;
   const aiQuizBtn = document.getElementById("startAIQuizBtn");
   const originalText = aiQuizBtn.textContent;
@@ -2618,28 +2958,32 @@ async function generateAIQuiz() {
   aiQuizBtn.disabled = true;
 
   try {
-    await loadYueDictionary();
+    if (dialect === "yue") {
+      await loadYueDictionary();
+    } else {
+      await loadRegionalDialectDictionary(dialect);
+    }
   } catch (err) {
     console.error(err);
     aiQuizBtn.textContent = originalText;
     aiQuizBtn.disabled = false;
-    alert("粤语词典加载失败，无法 AI 出题，请稍后重试或使用本地题库");
+    alert(`${meta.label}词典加载失败，无法 AI 出题，请稍后重试或使用本地题库`);
     return;
   }
 
-  const dictEntries = getRandomDictEntries(20);
+  const dictEntries = getRandomDictEntries(20, dialect);
   const dictContext = dictEntries.map(entry => {
     const example = entry.example ? `（示例：${entry.example}）` : "";
-    return `${entry.simp}(${entry.trad}) 拼音:${entry.pinyin} - ${entry.explanation || ""}${example}`;
+    return `${entry.simp}(${entry.trad}) ${meta.readingLabel}:${entry.pinyin} - ${entry.explanation || ""}${example}`;
   }).join("\n");
 
   const difficultyGuide = {
-    easy: "简单：题目为常见粤语词汇的含义选择，4个选项，1个正确答案",
-    medium: "中等：题目涉及粤语词汇的用法和含义辨析，4个选项，1个正确答案",
-    hard: "困难：题目涉及粤语语法、俚语、声调辨析等，4个选项，1个正确答案",
+    easy: `简单：题目为常见${meta.label}词汇的含义选择，4个选项，1个正确答案`,
+    medium: `中等：题目涉及${meta.label}词汇的用法和含义辨析，4个选项，1个正确答案`,
+    hard: `困难：题目涉及${meta.label}语法、俚语或读音辨析等，4个选项，1个正确答案`,
   };
 
-  const prompt = `你是粤语学习测验出题专家。请根据提供的粤语词典信息，生成5道选择题。
+  const prompt = `你是${meta.label}学习测验出题专家。请根据提供的${meta.label}词典信息，生成5道选择题。
 
 难度要求：${difficultyGuide[difficulty]}
 
@@ -2659,7 +3003,7 @@ ${dictContext}
 
   try {
     const result = await callChatAPI([
-      { role: "system", content: "你是粤语学习测验出题专家。只输出JSON格式的题目数组，不要输出任何其他文字。" },
+      { role: "system", content: `你是${meta.label}学习测验出题专家。只输出JSON格式的题目数组，不要输出任何其他文字。` },
       { role: "user", content: prompt },
     ]);
 
@@ -2789,16 +3133,19 @@ function updateProgressStats() {
 }
 
 document.getElementById("homePlayQuoteBtn").addEventListener("click", () => {
-  playDailyQuote();
-  trackAudioPlayed();
+  playDailyQuote().then((didPlay) => {
+    if (didPlay) trackAudioPlayed();
+  });
 });
 document.getElementById("dailyPlayQuoteBtn").addEventListener("click", () => {
-  playDailyQuote();
-  trackAudioPlayed();
+  playDailyQuote().then((didPlay) => {
+    if (didPlay) trackAudioPlayed();
+  });
 });
 document.getElementById("dailyNextQuoteBtn").addEventListener("click", () => {
-  const randomIndex = Math.floor(Math.random() * dailyQuotes.length);
-  const quote = dailyQuotes[randomIndex];
+  const quotes = getDialectQuotes();
+  const randomIndex = Math.floor(Math.random() * quotes.length);
+  const quote = quotes[randomIndex];
   document.getElementById("dailyQuoteYue").textContent = quote.yue;
   document.getElementById("dailyQuoteZh").textContent = quote.zh;
   document.getElementById("dailyQuotePinyin").textContent = quote.pinyin;
@@ -2807,7 +3154,7 @@ document.getElementById("dailyFavoriteQuoteBtn").addEventListener("click", () =>
   const yue = document.getElementById("dailyQuoteYue").textContent;
   const zh = document.getElementById("dailyQuoteZh").textContent;
   if (yue && yue !== "加载中...") {
-    addToFavorites(yue, zh);
+    addToFavorites(yue, zh, "", "每日一句", getCurrentDailyDialect());
     alert("已添加到收藏夹！");
   }
 });
@@ -2820,6 +3167,18 @@ document.querySelectorAll(".phrase-cat-btn").forEach(btn => {
     renderPhraseList(currentPhraseCategory);
   });
 });
+
+phraseDialectEl?.addEventListener("change", () => {
+  syncLearningDialectUI();
+  renderPhraseList(currentPhraseCategory);
+});
+
+dailyDialectEl?.addEventListener("change", () => {
+  syncLearningDialectUI();
+  renderDailyQuote();
+});
+
+quizDialectEl?.addEventListener("change", syncLearningDialectUI);
 
 document.getElementById("startQuizBtn").addEventListener("click", startQuiz);
 document.getElementById("startAIQuizBtn").addEventListener("click", generateAIQuiz);
@@ -2953,6 +3312,7 @@ document.getElementById("playToneBtn").addEventListener("click", () => {
 });
 document.getElementById("nextToneBtn").addEventListener("click", nextToneQuestion);
 
+syncLearningDialectUI();
 renderDailyQuote();
 renderPhraseList("greeting");
 updateProgressStats();
@@ -3021,15 +3381,20 @@ function saveWordbook(book) {
   localStorage.setItem(WORDBOOK_KEY, JSON.stringify(book));
 }
 
-function addToWordbook(simp, trad, pinyin, explanation) {
+function addToWordbook(simp, trad, pinyin, explanation, dialect = "yue") {
   const book = loadWordbook();
   const existing = book.find(w => w.simp === simp && w.pinyin === pinyin);
-  if (existing) return;
+  if (existing) {
+    existing.dialect = existing.dialect || dialect;
+    saveWordbook(book);
+    return;
+  }
   book.push({
     simp,
     trad: trad || simp,
     pinyin,
     explanation: explanation || "",
+    dialect,
     status: "new",
     level: 0,
     nextReview: Date.now(),
@@ -3106,7 +3471,7 @@ function renderWordbook() {
       </div>
       ${w.explanation ? `<div class="wb-explanation">${w.explanation}</div>` : ""}
       <div class="wb-actions">
-        <button class="icon-btn" onclick="playYuePinyin('${w.pinyin}')">🔊</button>
+        <button class="icon-btn" onclick="playWordbookAudio('${w.pinyin}', '${w.dialect || ""}')">🔊</button>
         <button class="icon-btn" onclick="removeFromWordbook('${w.simp}','${w.pinyin}')">🗑️</button>
       </div>
     </div>`;
@@ -3117,6 +3482,20 @@ function removeFromWordbook(simp, pinyin) {
   const book = loadWordbook().filter(w => !(w.simp === simp && w.pinyin === pinyin));
   saveWordbook(book);
   renderWordbook();
+}
+
+function looksLikeYuePinyin(pinyin = "") {
+  return /[a-z]+[1-6]\b/i.test(String(pinyin || ""));
+}
+
+function playWordbookAudio(pinyin, dialect = "yue") {
+  const effectiveDialect = dialect || (looksLikeYuePinyin(pinyin) ? "yue" : "unknown");
+  if (canPlayStandardAudioForDialect(effectiveDialect) && looksLikeYuePinyin(pinyin)) {
+    playYuePinyin(pinyin);
+    return true;
+  }
+  showDialectAudioUnavailable(effectiveDialect, pinyin);
+  return false;
 }
 
 document.querySelectorAll(".wb-filter-btn").forEach(btn => {
@@ -3159,7 +3538,7 @@ function showNextReviewCard() {
     <div class="review-answer" style="display:none;">
       <p>拼音：${currentReviewItem.pinyin}</p>
       <p>${currentReviewItem.explanation || ""}</p>
-      <button class="icon-btn" onclick="playYuePinyin('${currentReviewItem.pinyin}')">🔊</button>
+      <button class="icon-btn" onclick="playWordbookAudio('${currentReviewItem.pinyin}', '${currentReviewItem.dialect || ""}')">🔊</button>
     </div>
   `;
   const hint = content.querySelector(".review-hint");
@@ -3299,14 +3678,14 @@ const ACHIEVEMENT_KEY = "dls-ai-achievements";
 const XP_KEY = "dls-ai-xp";
 
 const LEVELS = [
-  { name: "初学者", icon: "🌱", xp: 0, desc: "刚刚开始粤语学习之旅" },
+  { name: "初学者", icon: "🌱", xp: 0, desc: "刚刚开始方言学习之旅" },
   { name: "入门者", icon: "🌿", xp: 100, desc: "已迈出第一步" },
-  { name: "学徒", icon: "📗", xp: 300, desc: "掌握基础粤语词汇" },
-  { name: "学徒进阶", icon: "📘", xp: 600, desc: "粤语学习渐入佳境" },
-  { name: "熟练者", icon: "📙", xp: 1000, desc: "能进行基本粤语对话" },
-  { name: "精通者", icon: "📕", xp: 1500, desc: "粤语水平相当不错" },
-  { name: "专家", icon: "🎓", xp: 2500, desc: "粤语知识丰富" },
-  { name: "大师", icon: "👑", xp: 4000, desc: "粤语学习的大师" },
+  { name: "学徒", icon: "📗", xp: 300, desc: "掌握基础方言词汇" },
+  { name: "学徒进阶", icon: "📘", xp: 600, desc: "方言学习渐入佳境" },
+  { name: "熟练者", icon: "📙", xp: 1000, desc: "能进行基本方言对话" },
+  { name: "精通者", icon: "📕", xp: 1500, desc: "方言水平相当不错" },
+  { name: "专家", icon: "🎓", xp: 2500, desc: "方言知识丰富" },
+  { name: "大师", icon: "👑", xp: 4000, desc: "方言学习的大师" },
 ];
 
 const BADGES = [
@@ -3410,13 +3789,16 @@ function renderAchievement() {
 }
 
 // ==================== Web Speech API 备选发音 ====================
-function speakWithWebSpeech(text) {
+function speakWithWebSpeech(text, lang = "zh-HK") {
   if (!window.speechSynthesis) return false;
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "zh-HK";
+  utterance.lang = lang;
   utterance.rate = parseFloat(document.getElementById("pronSpeed")?.value || "1.0");
   const voices = speechSynthesis.getVoices();
-  const zhVoice = voices.find(v => v.lang.includes("zh") && (v.lang.includes("HK") || v.lang.includes("TW")));
+  const zhVoice =
+    voices.find((v) => v.lang === lang) ||
+    voices.find((v) => v.lang.includes("zh") && (v.lang.includes("HK") || v.lang.includes("TW") || v.lang.includes("CN"))) ||
+    voices.find((v) => v.lang.includes("zh"));
   if (zhVoice) utterance.voice = zhVoice;
   speechSynthesis.speak(utterance);
   return true;
@@ -3566,12 +3948,13 @@ function loadFavoritesWithCategory() {
   } catch { return []; }
 }
 
-function addToFavorites(input, output, direction, category) {
+function addToFavorites(input, output, direction, category, dialect = "") {
   const favorites = loadFavoritesWithCategory();
   favorites.unshift({
     input,
     output,
     direction,
+    dialect,
     category: category || "翻译",
     timestamp: Date.now(),
   });
@@ -3600,6 +3983,7 @@ function renderFavorites() {
     const el = document.createElement("div");
     el.className = "favorites-item";
     const catLabel = item.category || "翻译";
+    const favoriteDialect = item.dialect || inferKnownLearningDialect(item.output || item.input || "");
     el.innerHTML = `
       <div class="favorites-item-content">
         <span class="fav-cat-tag">${catLabel}</span>
@@ -3608,7 +3992,7 @@ function renderFavorites() {
         <p style="margin: 4px 0; color: var(--accent); font-weight: 500;">${item.output}</p>
       </div>
       <div class="favorites-item-actions">
-        <button class="icon-btn" title="朗读" onclick="speakText('${(item.output || item.input || "").replace(/'/g, "\\'")}')">🔊</button>
+        <button class="icon-btn" title="朗读" onclick="speakFavoriteText('${(item.output || item.input || "").replace(/'/g, "\\'")}', '${item.direction || ""}', '${favoriteDialect}')">🔊</button>
         <button class="icon-btn" title="复制" onclick="copyText('${(item.output || item.input || "").replace(/'/g, "\\'")}')">📋</button>
         <button class="icon-btn" title="删除" style="color: var(--delete);" onclick="deleteFavorite(${realIndex})">🗑️</button>
       </div>
@@ -3651,7 +4035,7 @@ function renderCustomQuotes() {
 
   listEl.innerHTML = quotes.map((q, i) => `
     <div class="custom-quote-item">
-      <span>${q.yue} - ${q.zh} (${q.pinyin})</span>
+      <span>${getDialectMeta(q.dialect || "yue").label}：${q.yue} - ${q.zh} (${q.pinyin || "无注音"})</span>
       <button class="icon-btn" onclick="removeCustomQuote(${i})">🗑️</button>
     </div>
   `).join("");
@@ -3668,12 +4052,13 @@ document.getElementById("addCustomQuoteBtn")?.addEventListener("click", () => {
   const yue = document.getElementById("customQuoteYue").value.trim();
   const zh = document.getElementById("customQuoteZh").value.trim();
   const pinyin = document.getElementById("customQuotePinyin").value.trim();
+  const dialect = getCurrentDailyDialect();
   if (!yue || !zh) {
-    showPixelToast("请填写粤语句子和中文翻译");
+    showPixelToast(`请填写${getDialectMeta(dialect).label}句子和中文翻译`);
     return;
   }
   const quotes = loadCustomQuotes();
-  quotes.push({ yue, zh, pinyin: pinyin || "" });
+  quotes.push({ dialect, yue, zh, pinyin: pinyin || "" });
   saveCustomQuotes(quotes);
   renderCustomQuotes();
   document.getElementById("customQuoteYue").value = "";
@@ -3681,7 +4066,7 @@ document.getElementById("addCustomQuoteBtn")?.addEventListener("click", () => {
   document.getElementById("customQuotePinyin").value = "";
   showPixelToast("✅ 已添加自定义句子");
 
-  const allQuotes = [...dailyQuotes, ...quotes];
+  const allQuotes = [...getDialectQuotes(dialect), ...quotes.filter((q) => (q.dialect || "yue") === dialect)];
   const randomQuote = allQuotes[Math.floor(Math.random() * allQuotes.length)];
   document.getElementById("dailyQuoteYue").textContent = randomQuote.yue;
   document.getElementById("dailyQuoteZh").textContent = randomQuote.zh;
@@ -3701,7 +4086,7 @@ function generateShareText() {
     if (xp >= LEVELS[i].xp) { currentLevel = LEVELS[i]; break; }
   }
 
-  return `🎓 多邻省 AI 粤语学习报告\n${"=".repeat(20)}\n📊 等级：${currentLevel.icon} ${currentLevel.name}\n⭐ 经验值：${xp} XP\n📕 生词：${book.length} 个（已掌握 ${mastered} 个）\n🎖️ 徽章：${unlocked.length}/${BADGES.length}\n🔥 连续打卡：${checkin.streak || 0} 天\n📅 累计打卡：${checkin.totalDays || 0} 天\n${"=".repeat(20)}\n来一起学粤语吧！`;
+  return `🎓 多邻省 AI 方言学习报告\n${"=".repeat(20)}\n📊 等级：${currentLevel.icon} ${currentLevel.name}\n⭐ 经验值：${xp} XP\n📕 生词：${book.length} 个（已掌握 ${mastered} 个）\n🎖️ 徽章：${unlocked.length}/${BADGES.length}\n🔥 连续打卡：${checkin.streak || 0} 天\n📅 累计打卡：${checkin.totalDays || 0} 天\n${"=".repeat(20)}\n来一起学方言吧！`;
 }
 
 document.getElementById("shareAchievementBtn")?.addEventListener("click", () => {
@@ -3720,9 +4105,9 @@ document.getElementById("shareFavoritesBtn")?.addEventListener("click", () => {
     showPixelToast("暂无收藏内容");
     return;
   }
-  const text = "⭐ 我的粤语学习收藏\n" + favorites.slice(0, 10).map(f => `${f.input} → ${f.output}`).join("\n");
+  const text = "⭐ 我的方言学习收藏\n" + favorites.slice(0, 10).map(f => `${f.input} → ${f.output}`).join("\n");
   if (navigator.share) {
-    navigator.share({ title: "粤语学习收藏", text }).catch(() => {});
+    navigator.share({ title: "方言学习收藏", text }).catch(() => {});
   } else {
     copyText(text);
     showPixelToast("📋 收藏已复制到剪贴板");
@@ -3746,7 +4131,7 @@ document.getElementById("exportReportBtn")?.addEventListener("click", () => {
     if (xp >= LEVELS[i].xp) { currentLevel = LEVELS[i]; break; }
   }
 
-  const reportHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>粤语学习报告</title>
+  const reportHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>方言学习报告</title>
 <style>
 body{font-family:sans-serif;max-width:600px;margin:40px auto;padding:20px;color:#333}
 h1{color:#2d2d3a;border-bottom:3px solid #00ff88;padding-bottom:10px}
@@ -3759,7 +4144,7 @@ h2{color:#4a4a6a;margin-top:30px}
 .badge.locked{background:#ddd;color:#999}
 .footer{text-align:center;margin-top:40px;color:#888;font-size:12px}
 </style></head><body>
-<h1>🎓 多邻省 AI 粤语学习报告</h1>
+<h1>🎓 多邻省 AI 方言学习报告</h1>
 <p>生成时间：${new Date().toLocaleString("zh-CN")}</p>
 
 <h2>📊 等级与经验</h2>
@@ -3807,7 +4192,7 @@ ${BADGES.map(b => `<span class="badge ${unlocked.includes(b.id) ? "unlocked" : "
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `粤语学习报告_${getTodayStr()}.html`;
+  a.download = `方言学习报告_${getTodayStr()}.html`;
   a.click();
   URL.revokeObjectURL(url);
   showPixelToast("📄 报告已导出");
@@ -3878,7 +4263,7 @@ searchYueWord = async function() {
     if (results.length > 0) {
       renderRegionalDialectResult(dialect, results);
       results.slice(0, 3).forEach(r => {
-        addToWordbook(r.simp, r.trad, r.pinyin, r.explanation);
+        addToWordbook(r.simp, r.trad, r.pinyin, r.explanation, dialect);
       });
       trackDailyTask("query_dict", 1);
       addXP(3);
@@ -3930,8 +4315,12 @@ saveQuizScore = function(score, total, difficulty) {
 // 增强：每日一句下一句包含自定义句子
 document.getElementById("dailyNextQuoteBtn").removeEventListener("click", () => {});
 document.getElementById("dailyNextQuoteBtn").addEventListener("click", () => {
+  const dialect = getCurrentDailyDialect();
   const customQuotes = loadCustomQuotes();
-  const allQuotes = [...dailyQuotes, ...customQuotes];
+  const allQuotes = [
+    ...getDialectQuotes(dialect),
+    ...customQuotes.filter((q) => (q.dialect || "yue") === dialect),
+  ];
   const randomQuote = allQuotes[Math.floor(Math.random() * allQuotes.length)];
   document.getElementById("dailyQuoteYue").textContent = randomQuote.yue;
   document.getElementById("dailyQuoteZh").textContent = randomQuote.zh;
@@ -3940,12 +4329,13 @@ document.getElementById("dailyNextQuoteBtn").addEventListener("click", () => {
 
 // 增强：收藏时使用分类
 const originalAddToFavorites = addToFavorites;
-addToFavorites = function(input, output, direction, category) {
+addToFavorites = function(input, output, direction, category, dialect = "") {
   const favorites = loadFavoritesWithCategory();
   favorites.unshift({
     input,
     output,
     direction: direction || "",
+    dialect,
     category: category || "翻译",
     timestamp: Date.now(),
   });
@@ -3960,7 +4350,7 @@ document.getElementById("dailyFavoriteQuoteBtn").addEventListener("click", () =>
   const yue = document.getElementById("dailyQuoteYue").textContent;
   const zh = document.getElementById("dailyQuoteZh").textContent;
   if (yue && yue !== "加载中...") {
-    addToFavorites(yue, zh, "", "每日一句");
+    addToFavorites(yue, zh, "", "每日一句", getCurrentDailyDialect());
     showPixelToast("⭐ 已添加到收藏夹");
   }
 });
@@ -3969,9 +4359,10 @@ document.getElementById("dailyFavoriteQuoteBtn").addEventListener("click", () =>
 const originalRenderPhraseList = renderPhraseList;
 renderPhraseList = function(category) {
   const phraseList = document.getElementById("phraseList");
-  const phrases = commonPhrases[category] || [];
+  const dialect = getCurrentPhraseDialect();
+  const phrases = getDialectPhrases(dialect)[category] || [];
 
-  phraseList.innerHTML = phrases.map((phrase) => `
+  phraseList.innerHTML = phrases.map((phrase, index) => `
     <div class="phrase-item">
       <div class="phrase-content">
         <div class="yue">${phrase.yue}</div>
@@ -3979,7 +4370,7 @@ renderPhraseList = function(category) {
         <div class="pinyin">${phrase.pinyin}</div>
       </div>
       <div class="phrase-actions">
-        <button class="icon-btn phrase-play-btn" data-pinyin="${phrase.pinyin}" title="播放发音">🔊</button>
+        <button class="icon-btn phrase-play-btn" data-index="${index}" data-pinyin="${phrase.pinyin}" title="播放发音">🔊</button>
         <button class="icon-btn phrase-fav-btn" data-yue="${phrase.yue}" data-zh="${phrase.zh}" title="收藏">⭐</button>
       </div>
     </div>
@@ -3987,15 +4378,16 @@ renderPhraseList = function(category) {
 
   phraseList.querySelectorAll(".phrase-play-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      playYuePinyin(btn.dataset.pinyin);
-      trackAudioPlayed();
+      const phrase = phrases[Number(btn.dataset.index)] || {};
+      const didPlay = speakLearningItem(phrase.yue, phrase.pinyin, dialect);
+      if (didPlay) trackAudioPlayed();
       trackPhraseLearned();
     });
   });
 
   phraseList.querySelectorAll(".phrase-fav-btn").forEach(btn => {
     btn.addEventListener("click", () => {
-      addToFavorites(btn.dataset.yue, btn.dataset.zh, "", "短语");
+      addToFavorites(btn.dataset.yue, btn.dataset.zh, "", "短语", dialect);
       showPixelToast("⭐ 已添加到收藏夹");
     });
   });

@@ -79,17 +79,17 @@
           <div class="feature-card" onclick="navigateTo('phrases')">
             <div class="feature-icon">📝</div>
             <h3>常用短语</h3>
-            <p>快速查看常用粤语表达</p>
+            <p>快速查看常用方言表达</p>
           </div>
           <div class="feature-card" onclick="navigateTo('daily')">
             <div class="feature-icon">📅</div>
             <h3>每日一句</h3>
-            <p>每天学习一句实用粤语</p>
+            <p>每天学习一句实用方言</p>
           </div>
           <div class="feature-card" onclick="navigateTo('quiz')">
             <div class="feature-icon">🎯</div>
             <h3>学习测验</h3>
-            <p>测试你的粤语学习成果</p>
+            <p>测试你的方言学习成果</p>
           </div>
           <div class="feature-card" onclick="navigateTo('favorites')">
             <div class="feature-icon">⭐</div>
@@ -109,7 +109,7 @@
         </div>
 
         <div class="daily-quote-section">
-          <h2>📅 今日粤语</h2>
+          <h2 id="homeDailyTitle">📅 今日方言</h2>
           <div id="homeDailyQuote" class="daily-quote">
             <div class="quote-content">
               <p class="quote-yue" id="homeQuoteYue">加载中...</p>
@@ -290,7 +290,18 @@
       <!-- 常用短语页面 -->
       <section id="page-phrases" class="page">
         <div class="panel">
-          <h2>📝 常用粤语短语</h2>
+          <h2 id="phrasesTitle">📝 常用方言短语</h2>
+          <div class="translate-controls">
+            <label>
+              学习方言
+              <select id="phraseDialect">
+                <option value="yue">粤语</option>
+                <option value="minnan">闽南语</option>
+                <option value="shanghai">上海话</option>
+                <option value="sichuan">四川话</option>
+              </select>
+            </label>
+          </div>
           <div class="phrase-categories">
             <button class="phrase-cat-btn active" data-cat="greeting">问候</button>
             <button class="phrase-cat-btn" data-cat="daily">日常</button>
@@ -305,7 +316,18 @@
       <!-- 每日一句页面 -->
       <section id="page-daily" class="page">
         <div class="panel">
-          <h2>📅 每日一句粤语</h2>
+          <h2 id="dailyTitle">📅 每日一句方言</h2>
+          <div class="translate-controls">
+            <label>
+              学习方言
+              <select id="dailyDialect">
+                <option value="yue">粤语</option>
+                <option value="minnan">闽南语</option>
+                <option value="shanghai">上海话</option>
+                <option value="sichuan">四川话</option>
+              </select>
+            </label>
+          </div>
           <div id="dailyQuote" class="daily-quote-large">
             <div class="quote-content">
               <p class="quote-yue" id="dailyQuoteYue">加载中...</p>
@@ -321,9 +343,9 @@
           <div class="custom-quote-section">
             <h3>✏️ 自定义每日一句</h3>
             <div class="custom-quote-form">
-              <input type="text" id="customQuoteYue" placeholder="粤语句子" />
+              <input type="text" id="customQuoteYue" placeholder="方言句子" />
               <input type="text" id="customQuoteZh" placeholder="中文翻译" />
-              <input type="text" id="customQuotePinyin" placeholder="粤拼（如：nei5 hou2）" />
+              <input type="text" id="customQuotePinyin" placeholder="注音/读音（如：nei5 hou2）" />
               <button id="addCustomQuoteBtn" class="btn">添加</button>
             </div>
             <div id="customQuotesList" class="custom-quotes-list"></div>
@@ -338,11 +360,17 @@
       <!-- 测验页面 -->
       <section id="page-quiz" class="page">
         <div class="panel">
-          <h2>🎯 粤语学习测验</h2>
+          <h2 id="quizTitle">🎯 方言学习测验</h2>
           <div id="quizContainer" class="quiz-container">
             <div id="quizStart" class="quiz-start">
-              <p>准备好测试你的粤语水平了吗？</p>
+              <p id="quizIntro">准备好测试你的方言水平了吗？</p>
               <div class="quiz-options">
+                <select id="quizDialect">
+                  <option value="yue">粤语</option>
+                  <option value="minnan">闽南语</option>
+                  <option value="shanghai">上海话</option>
+                  <option value="sichuan">四川话</option>
+                </select>
                 <select id="quizDifficulty">
                   <option value="easy">简单</option>
                   <option value="medium" selected>中等</option>
@@ -516,7 +544,7 @@
               <div class="level-icon" id="levelIcon">🌱</div>
               <div class="level-info">
                 <h3 id="levelName">初学者</h3>
-                <p id="levelDesc">刚刚开始粤语学习之旅</p>
+                <p id="levelDesc">刚刚开始方言学习之旅</p>
               </div>
             </div>
             <div class="level-progress">
@@ -708,7 +736,7 @@
     </main>
 
     <script src="./auth.js"></script>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=20260616-audio-fix"></script>
     <script src="./role-features.js"></script>
   </body>
 </html>
