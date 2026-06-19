@@ -33,7 +33,7 @@ npm start
 
 页面中可配置：
 
-- `API Key`
+- `API 配置文件`（JSON 上传，含 `apiKey`）
 - `Base URL`（默认：`http://localhost:11434`）
 - `Model`（默认：`qwen3.5:4b`）
 
@@ -44,7 +44,7 @@ DeepSeek 可选择页面里的“连接方式 -> DeepSeek”，会自动填入�
 
 保存后会写入浏览器 `localStorage`。
 
-如果不填 API Key：
+如果不配置 API Key（本地 Ollama 可不上传）：
 
 - AI 对话功能会提示先配置
 - 互译功能会自动使用本地基础词典兜底（仅用于演示，准确性有限）

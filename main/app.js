@@ -4,7 +4,11 @@ const DEFAULT_MODEL = "qwen3.5:0.8b";
 const REQUEST_TIMEOUT_MS = 120000;
 const chatHistoryEl = document.getElementById("chatHistory");
 
-const apiKeyEl = document.getElementById("apiKey");
+const configFileInput = document.getElementById("configFileInput");
+const uploadConfigBtn = document.getElementById("uploadConfigBtn");
+const clearConfigKeyBtn = document.getElementById("clearConfigKeyBtn");
+const downloadConfigTemplateBtn = document.getElementById("downloadConfigTemplateBtn");
+const configKeyStatusEl = document.getElementById("configKeyStatus");
 const baseUrlEl = document.getElementById("baseUrl");
 const modelEl = document.getElementById("model");
 const modelPresetEl = document.getElementById("modelPreset");
@@ -127,7 +131,7 @@ const conversation = [
   {
     role: "system",
     content:
-      "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言",
+      "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言\n8. 你可以调用工具辅助回答：search_dialect_dictionary（查词典）、generate_practice_quiz（出练习题）、get_user_progress（了解学习进度）。需要精确词条、出题或个性化建议时请主动调用\n9. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读",
   },
 ];
 
@@ -396,20 +400,153 @@ function setConfig(config) {
   localStorage.setItem(configKey, JSON.stringify(config));
 }
 
-function renderMessage(role, text) {
+function renderMessage(role, text, options = {}) {
   const el = document.createElement("div");
   el.className = `msg ${role}`;
-  el.textContent = `${role === "user" ? "你" : "助手"}：${text}`;
+  if (options.guardrailBlocked) el.classList.add("msg-guardrail");
+
+  const label = document.createElement("div");
+  label.className = "msg-label";
+  if (options.guardrailBlocked) {
+    label.textContent = "安全提示";
+  } else {
+    label.textContent = role === "user" ? "你" : "助手";
+  }
+  el.appendChild(label);
+
+  const body = document.createElement("div");
+  body.className = role === "assistant" ? "msg-body markdown-body" : "msg-body";
+  if (role === "assistant" && typeof window.renderMarkdown === "function") {
+    body.innerHTML = window.renderMarkdown(text);
+  } else {
+    body.textContent = text;
+  }
+  el.appendChild(body);
+
+  if (options.guardrailWarning) {
+    const warn = document.createElement("div");
+    warn.className = "guardrail-warning";
+    warn.textContent = `⚠️ ${options.guardrailWarning}`;
+    el.appendChild(warn);
+  }
+
+  if (options.toolCalls?.length) {
+    const toolsEl = document.createElement("div");
+    toolsEl.className = "msg-tools";
+    for (const toolName of options.toolCalls) {
+      const chip = document.createElement("span");
+      chip.className = "tool-chip";
+      chip.textContent = `🔧 ${formatToolLabel(toolName)}`;
+      toolsEl.appendChild(chip);
+    }
+    el.appendChild(toolsEl);
+  }
+
+  if (role === "assistant" && options.feedback !== false && !options.guardrailBlocked) {
+    const messageId = options.messageId || createMessageId();
+    el.dataset.messageId = messageId;
+    el.dataset.userInput = options.userInput || "";
+    el.dataset.assistantReply = text;
+
+    const feedbackEl = document.createElement("div");
+    feedbackEl.className = "msg-feedback";
+    feedbackEl.innerHTML = `
+      <span class="msg-feedback-label">这条回答有帮助吗？</span>
+      <button type="button" class="feedback-btn feedback-up" title="有帮助" aria-label="有帮助">👍</button>
+      <button type="button" class="feedback-btn feedback-down" title="需改进" aria-label="需改进">👎</button>
+    `;
+    feedbackEl.querySelector(".feedback-up").addEventListener("click", () => {
+      submitChatFeedback(messageId, "up", options.userInput || "", text, feedbackEl);
+    });
+    feedbackEl.querySelector(".feedback-down").addEventListener("click", () => {
+      submitChatFeedback(messageId, "down", options.userInput || "", text, feedbackEl);
+    });
+    el.appendChild(feedbackEl);
+  }
+
   chatHistoryEl.appendChild(el);
   chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+  return el;
+}
+
+function createMessageId() {
+  return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatToolLabel(toolName) {
+  const labels = {
+    search_dialect_dictionary: "词典查询",
+    generate_practice_quiz: "生成测验",
+    get_user_progress: "学习进度",
+  };
+  return labels[toolName] || toolName;
+}
+
+let activeToolStatusEl = null;
+
+function showToolStatus(toolName) {
+  removeToolStatus();
+  activeToolStatusEl = document.createElement("div");
+  activeToolStatusEl.className = "tool-status";
+  activeToolStatusEl.textContent = `🔧 正在调用 ${formatToolLabel(toolName)}...`;
+  chatHistoryEl.appendChild(activeToolStatusEl);
+  chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+}
+
+function removeToolStatus() {
+  if (activeToolStatusEl) {
+    activeToolStatusEl.remove();
+    activeToolStatusEl = null;
+  }
+}
+
+function maskApiKey(key) {
+  if (!key) return "未配置 API Key";
+  if (key.length <= 8) return "已配置 API Key";
+  return `已配置 API Key（…${key.slice(-4)}）`;
+}
+
+function updateConfigKeyStatus() {
+  if (!configKeyStatusEl) return;
+  const cfg = getConfig();
+  configKeyStatusEl.textContent = maskApiKey(cfg.apiKey);
+  configKeyStatusEl.classList.toggle("configured", Boolean(cfg.apiKey));
+}
+
+function normalizeUploadedConfig(raw) {
+  const data = typeof raw === "object" && raw ? raw : {};
+  const apiKey = data.apiKey || data.api_key || data.API_KEY || data.key || data.token || "";
+  return {
+    apiKey: String(apiKey).trim(),
+    baseUrl: String(data.baseUrl || data.base_url || "").trim(),
+    model: String(data.model || "").trim(),
+    provider: String(data.provider || "").trim(),
+  };
+}
+
+function applyUploadedConfig(parsed) {
+  const current = getConfig();
+  const next = {
+    ...current,
+    apiKey: parsed.apiKey || current.apiKey,
+    baseUrl: parsed.baseUrl || current.baseUrl,
+    model: parsed.model || current.model,
+    provider:
+      parsed.provider ||
+      current.provider ||
+      inferProvider(parsed.baseUrl || current.baseUrl, parsed.model || current.model),
+  };
+  setConfig(next);
+  loadConfigToForm();
+  showPixelToast(parsed.apiKey ? "✅ 配置文件已加载" : "⚠️ 配置文件中未找到 API Key");
 }
 
 function loadConfigToForm() {
   const cfg = getConfig();
-  apiKeyEl.value = cfg.apiKey || "";
   baseUrlEl.value = cfg.baseUrl || DEFAULT_BASE_URL;
   modelEl.value = cfg.model || DEFAULT_MODEL;
   providerPresetEl.value = cfg.provider || inferProvider(cfg.baseUrl, cfg.model);
+  updateConfigKeyStatus();
   updateModelGuide();
 }
 
@@ -529,7 +666,186 @@ function extractContentFromResponse(data) {
   return "";
 }
 
-async function callChatAPI(messages) {
+function extractAssistantMessage(data) {
+  if (data?.message) {
+    return {
+      role: data.message.role || "assistant",
+      content: data.message.content || "",
+      tool_calls: data.message.tool_calls || null,
+    };
+  }
+  const choice = data?.choices?.[0]?.message;
+  if (choice) {
+    return {
+      role: choice.role || "assistant",
+      content: choice.content || "",
+      tool_calls: choice.tool_calls || null,
+    };
+  }
+  return {
+    role: "assistant",
+    content: extractContentFromResponse(data),
+    tool_calls: null,
+  };
+}
+
+function toApiTools(mcpTools) {
+  return (mcpTools || []).map((tool) => ({
+    type: "function",
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.inputSchema,
+    },
+  }));
+}
+
+let mcpToolsCache = null;
+
+const LOCAL_INPUT_GUARD_PATTERNS = [
+  {
+    pattern:
+      /ignore\s+(all\s+)?(previous\s+)?instructions|jailbreak|\bDAN\b|忽略.*(规则|指令|系统)|绕过.*(安全|审核)/i,
+    message: "检测到试图绕过安全规则的请求，请专注于方言学习相关问题。",
+  },
+  {
+    pattern: /如何\s*(制作|制造).*(炸弹|毒品|武器)|自杀\s*方法/i,
+    message: "该话题超出方言学习助手的服务范围。",
+  },
+];
+
+const LOCAL_OUTPUT_GUARD_PATTERNS = [
+  {
+    pattern: /\b1[3-9]\d{9}\b|\b\d{15,18}\b|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
+    message: "回复可能包含个人敏感信息，已被安全策略拦截。",
+  },
+  {
+    pattern: /(api[_-]?key|secret[_-]?key)\s*[:=]\s*\S+/i,
+    message: "回复可能包含敏感凭据，已被拦截。",
+  },
+];
+
+function localGuardrailCheck(text, stage) {
+  const rules = stage === "output" ? LOCAL_OUTPUT_GUARD_PATTERNS : LOCAL_INPUT_GUARD_PATTERNS;
+  for (const rule of rules) {
+    if (rule.pattern.test(text)) {
+      return { allowed: false, message: rule.message, violations: [{ id: "local", message: rule.message }] };
+    }
+  }
+  if (text.length > (stage === "input" ? 4000 : 12000)) {
+    return {
+      allowed: false,
+      message: "内容过长，请缩短后重试。",
+      violations: [{ id: "length", message: "内容过长" }],
+    };
+  }
+  return { allowed: true, sanitizedText: text, violations: [] };
+}
+
+async function checkGuardrail(text, stage, context = {}) {
+  try {
+    const res = await fetch("/mcp/guardrail/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage, text, context }),
+    });
+    if (!res.ok) return localGuardrailCheck(text, stage);
+    return await res.json();
+  } catch {
+    return localGuardrailCheck(text, stage);
+  }
+}
+
+async function submitChatFeedback(messageId, rating, userInput, assistantReply, feedbackEl) {
+  if (feedbackEl.dataset.submitted === "1") return;
+  try {
+    const res = await fetch("/mcp/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rating,
+        messageId,
+        userInput,
+        assistantReply,
+        source: "chat",
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      showPixelToast(data.error || "反馈提交失败");
+      return;
+    }
+    feedbackEl.dataset.submitted = "1";
+    feedbackEl.classList.add(rating === "up" ? "feedback-sent-up" : "feedback-sent-down");
+    feedbackEl.querySelector(".msg-feedback-label").textContent =
+      rating === "up" ? "感谢你的肯定！" : "感谢反馈，我们会持续改进。";
+    feedbackEl.querySelectorAll(".feedback-btn").forEach((btn) => {
+      btn.disabled = true;
+    });
+  } catch {
+    showPixelToast("反馈提交失败，请稍后重试");
+  }
+}
+
+async function fetchMcpTools() {
+  if (mcpToolsCache) return mcpToolsCache;
+  try {
+    const res = await fetch("/mcp/tools");
+    if (!res.ok) return [];
+    const data = await res.json();
+    mcpToolsCache = Array.isArray(data.tools) ? data.tools : [];
+    return mcpToolsCache;
+  } catch {
+    return [];
+  }
+}
+
+function getUserProgressPayload() {
+  const stats = typeof getProgressStats === "function" ? getProgressStats() : {};
+  let favoritesCount = 0;
+  let wordbookCount = 0;
+  try {
+    favoritesCount = JSON.parse(localStorage.getItem("dls-ai-favorites") || "[]").length;
+    wordbookCount = JSON.parse(localStorage.getItem("dls-ai-wordbook") || "[]").length;
+  } catch {
+    /* ignore */
+  }
+  return {
+    ...stats,
+    favoritesCount,
+    wordbookCount,
+    quizCompleted: stats.quizCompleted || stats.quizCount || 0,
+  };
+}
+
+async function callMcpTool(name, args = {}) {
+  const payload = { ...args };
+  if (name === "get_user_progress") {
+    payload.progress = getUserProgressPayload();
+  }
+  const res = await fetch("/mcp/call", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool: name, arguments: payload }),
+  });
+  if (!res.ok) {
+    throw new Error(`工具 ${name} 调用失败（${res.status}）`);
+  }
+  const data = await res.json();
+  return data.result ?? data;
+}
+
+function parseToolArguments(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function requestChatCompletion(messages, options = {}) {
   const cfg = getConfig();
   const baseUrl = (cfg.baseUrl || "").replace(/\/+$/, "");
   if (!baseUrl) {
@@ -551,22 +867,22 @@ async function callChatAPI(messages) {
   }
 
   const model = cfg.model || DEFAULT_MODEL;
-  const body = useOpenAIStyle
-    ? JSON.stringify({
-        model,
-        messages,
-        stream: false,
-        temperature: 0.3,
-      })
-    : JSON.stringify({
-        model,
-        messages,
-        stream: false,
-        keep_alive: -1,
-        options: {
-          temperature: 0.3,
-        },
-      });
+  const body = {
+    model,
+    messages,
+    stream: false,
+  };
+
+  if (options.tools?.length) {
+    body.tools = options.tools;
+  }
+
+  if (useOpenAIStyle) {
+    body.temperature = 0.3;
+  } else {
+    body.keep_alive = -1;
+    body.options = { temperature: 0.3 };
+  }
 
   let res;
   const controller = new AbortController();
@@ -575,7 +891,7 @@ async function callChatAPI(messages) {
     res = await fetch(url, {
       method: "POST",
       headers,
-      body,
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
   } catch (error) {
@@ -613,6 +929,71 @@ async function callChatAPI(messages) {
     );
   }
 
+  return data;
+}
+
+const MAX_TOOL_ROUNDS = 6;
+
+async function runChatWithTools(messages, onToolCall) {
+  const mcpTools = await fetchMcpTools();
+  let apiTools = mcpTools.length ? toApiTools(mcpTools) : null;
+  const usedTools = [];
+  const workingMessages = [...messages];
+  let toolsDisabled = false;
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+    let data;
+    try {
+      data = await requestChatCompletion(workingMessages, {
+        tools: toolsDisabled ? null : apiTools,
+      });
+    } catch (err) {
+      if (apiTools && !toolsDisabled && round === 0) {
+        toolsDisabled = true;
+        data = await requestChatCompletion(workingMessages, { tools: null });
+      } else {
+        throw err;
+      }
+    }
+
+    const assistantMsg = extractAssistantMessage(data);
+    const toolCalls = toolsDisabled ? null : assistantMsg.tool_calls;
+
+    if (!toolCalls?.length) {
+      return {
+        content: (assistantMsg.content || "").trim(),
+        usedTools,
+      };
+    }
+
+    workingMessages.push({
+      role: "assistant",
+      content: assistantMsg.content || "",
+      tool_calls: toolCalls,
+    });
+
+    for (const toolCall of toolCalls) {
+      const fn = toolCall.function || {};
+      const toolName = fn.name;
+      const toolArgs = parseToolArguments(fn.arguments);
+      usedTools.push(toolName);
+      onToolCall?.(toolName, toolArgs);
+      const result = await callMcpTool(toolName, toolArgs);
+      const toolMessage = {
+        role: "tool",
+        content: JSON.stringify(result, null, 2),
+      };
+      if (toolCall.id) toolMessage.tool_call_id = toolCall.id;
+      if (toolName) toolMessage.name = toolName;
+      workingMessages.push(toolMessage);
+    }
+  }
+
+  throw new Error("工具调用次数过多，请简化问题后重试。");
+}
+
+async function callChatAPI(messages) {
+  const data = await requestChatCompletion(messages);
   const content = extractContentFromResponse(data);
   if (!content) {
     throw new Error("模型返回为空，请检查 Ollama 接口和模型配置。");
@@ -1966,14 +2347,71 @@ async function searchYueWord() {
 }
 
 saveConfigBtn.addEventListener("click", () => {
+  const current = getConfig();
   const cfg = {
     provider: providerPresetEl.value || inferProvider(baseUrlEl.value.trim(), modelEl.value.trim()),
-    apiKey: apiKeyEl.value.trim(),
+    apiKey: current.apiKey || "",
     baseUrl: baseUrlEl.value.trim() || DEFAULT_BASE_URL,
     model: modelEl.value.trim() || DEFAULT_MODEL,
   };
   setConfig(cfg);
+  updateConfigKeyStatus();
   showPixelToast("✅ 配置已保存");
+});
+
+uploadConfigBtn?.addEventListener("click", () => {
+  configFileInput?.click();
+});
+
+configFileInput?.addEventListener("change", (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (file.size > 64 * 1024) {
+    showPixelToast("❌ 配置文件过大（上限 64KB）");
+    event.target.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const parsed = normalizeUploadedConfig(JSON.parse(ev.target.result));
+      if (!parsed.apiKey && !parsed.baseUrl && !parsed.model) {
+        showPixelToast("❌ 配置文件格式不正确");
+        return;
+      }
+      applyUploadedConfig(parsed);
+    } catch {
+      showPixelToast("❌ 配置文件不是有效 JSON");
+    } finally {
+      event.target.value = "";
+    }
+  };
+  reader.readAsText(file);
+});
+
+clearConfigKeyBtn?.addEventListener("click", () => {
+  const current = getConfig();
+  setConfig({ ...current, apiKey: "" });
+  updateConfigKeyStatus();
+  showPixelToast("🗑️ API Key 已清除");
+});
+
+downloadConfigTemplateBtn?.addEventListener("click", () => {
+  const template = {
+    apiKey: "your-api-key-here",
+    baseUrl: "https://api.deepseek.com/v1",
+    model: "deepseek-chat",
+    provider: "deepseek",
+  };
+  const blob = new Blob([`${JSON.stringify(template, null, 2)}\n`], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "dls-ai-config.template.json";
+  anchor.click();
+  URL.revokeObjectURL(url);
+  showPixelToast("📥 配置模板已下载");
 });
 
 providerPresetEl.addEventListener("change", () => {
@@ -2018,14 +2456,14 @@ function updateModelGuide() {
 
   if (provider === "deepseek") {
     titleEl.textContent = "🔗 DeepSeek 连接引导";
-    hintEl.textContent = "DeepSeek 是云端 OpenAI 兼容接口，无需下载模型。填写 API Key 后可直接使用：";
+    hintEl.textContent = "DeepSeek 是云端 OpenAI 兼容接口，无需下载模型。上传含 API Key 的配置文件后可直接使用：";
     cmdEl.textContent = `Base URL: ${PROVIDER_PRESETS.deepseek.baseUrl} / Model: ${model}`;
     return;
   }
 
   if (provider === "openai") {
     titleEl.textContent = "🔗 OpenAI 兼容接口引导";
-    hintEl.textContent = "云端 OpenAI 兼容接口无需下载模型。请确认 Base URL 以 /v1 结尾，并填写对应 API Key：";
+    hintEl.textContent = "云端 OpenAI 兼容接口无需下载模型。请确认 Base URL 以 /v1 结尾，并上传含 API Key 的配置文件：";
     cmdEl.textContent = `Base URL: ${baseUrlEl.value.trim() || PROVIDER_PRESETS.openai.baseUrl} / Model: ${model}`;
     return;
   }
@@ -2073,7 +2511,7 @@ function clearConversation() {
   conversation.push({
     role: "system",
     content:
-      "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言",
+      "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言\n8. 你可以调用工具辅助回答：search_dialect_dictionary（查词典）、generate_practice_quiz（出练习题）、get_user_progress（了解学习进度）。需要精确词条、出题或个性化建议时请主动调用\n9. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读",
   });
   chatHistoryEl.innerHTML = "";
   localStorage.removeItem(CHAT_STORAGE_KEY);
@@ -2083,6 +2521,19 @@ function clearConversation() {
 sendChatBtn.addEventListener("click", async () => {
   const input = chatInputEl.value.trim();
   if (!input) return;
+
+  const inputGuard = await checkGuardrail(input, "input", { source: "chat" });
+  if (!inputGuard.allowed) {
+    renderMessage("user", input);
+    chatInputEl.value = "";
+    const blockMsg = inputGuard.message || "该请求未通过安全检查，请换一个问题。";
+    renderMessage("assistant", `🛡️ ${blockMsg}`, {
+      guardrailBlocked: true,
+      feedback: false,
+    });
+    return;
+  }
+
   renderMessage("user", input);
   chatInputEl.value = "";
 
@@ -2103,19 +2554,48 @@ sendChatBtn.addEventListener("click", async () => {
     ? `${REGIONAL_DIALECTS[requestedDialect].label}词典参考信息`
     : "粤语词典参考信息";
   const enhancedInput = dictContext ? `${input}\n\n[${dictLabel}]\n${dictContext}` : input;
-  
+
   conversation.push({ role: "user", content: enhancedInput });
   saveConversation();
 
   showLoading(true);
   try {
-    const reply = await callChatAPI(conversation);
-    conversation.push({ role: "assistant", content: reply });
-    renderMessage("assistant", reply);
+    const { content: reply, usedTools } = await runChatWithTools(conversation, (toolName) => {
+      showToolStatus(toolName);
+    });
+    removeToolStatus();
+    if (!reply) {
+      throw new Error("模型返回为空，请检查模型是否支持工具调用。");
+    }
+
+    const outputGuard = await checkGuardrail(reply, "output", { source: "chat" });
+    if (!outputGuard.allowed) {
+      const blockMsg = outputGuard.message || "回复未通过安全检查，无法展示。";
+      renderMessage("assistant", `🛡️ ${blockMsg}`, {
+        guardrailBlocked: true,
+        feedback: false,
+      });
+      return;
+    }
+
+    const safeReply = outputGuard.sanitizedText || reply;
+    const warnMsg =
+      outputGuard.message ||
+      (inputGuard.violations || []).find((v) => v.severity === "warn")?.message ||
+      "";
+
+    conversation.push({ role: "assistant", content: safeReply });
+    renderMessage("assistant", safeReply, {
+      toolCalls: usedTools,
+      userInput: input,
+      messageId: createMessageId(),
+      guardrailWarning: warnMsg || undefined,
+    });
     saveConversation();
   } catch (err) {
+    removeToolStatus();
     const errorMsg = getFriendlyError(err);
-    renderMessage("assistant", errorMsg);
+    renderMessage("assistant", errorMsg, { feedback: false });
   } finally {
     showLoading(false);
   }
@@ -2279,6 +2759,13 @@ function extractRegionalTranslateRAG(input, direction) {
 translateBtn.addEventListener("click", async () => {
   const input = translateInputEl.value.trim();
   if (!input) return;
+
+  const inputGuard = await checkGuardrail(input, "input", { source: "translate" });
+  if (!inputGuard.allowed) {
+    translateOutputEl.textContent = `🛡️ ${inputGuard.message || "输入未通过安全检查"}`;
+    return;
+  }
+
   translateOutputEl.textContent = "⏳ 翻译中...";
   translateBtn.disabled = true;
   const direction = directionEl.value;
@@ -2305,8 +2792,14 @@ translateBtn.addEventListener("click", async () => {
       { role: "system", content: systemPrompt },
       { role: "user", content: userContent },
     ]);
-    translateOutputEl.textContent = result;
-    addToTranslateHistory(input, result, direction);
+    const outputGuard = await checkGuardrail(result, "output", { source: "translate" });
+    if (!outputGuard.allowed) {
+      translateOutputEl.textContent = `🛡️ ${outputGuard.message || "翻译结果未通过安全检查"}`;
+      return;
+    }
+    const safeResult = outputGuard.sanitizedText || result;
+    translateOutputEl.textContent = safeResult;
+    addToTranslateHistory(input, safeResult, direction);
   } catch (err) {
     const fallback = localTranslate(input, direction);
     const friendlyErr = getFriendlyError(err);

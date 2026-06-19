@@ -839,6 +839,31 @@ select:focus {
   padding: 14px;
 }
 
+.chat-safety-hint {
+  margin: 0 0 10px;
+  padding: 0 4px;
+  color: var(--muted-2);
+  font-size: 0.82rem;
+}
+
+.config-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.config-key-status {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted-2);
+  font-size: 0.84rem;
+}
+
+.config-key-status.configured {
+  color: #8fe8c0;
+}
+
 .msg {
   width: fit-content;
   max-width: min(760px, 92%);
@@ -847,7 +872,193 @@ select:focus {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.msg-label {
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted-2);
+}
+
+.msg-body {
   white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg-body.markdown-body {
+  white-space: normal;
+}
+
+.msg-body.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.msg-body.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.msg-body.markdown-body p,
+.msg-body.markdown-body ul,
+.msg-body.markdown-body ol,
+.msg-body.markdown-body pre,
+.msg-body.markdown-body blockquote,
+.msg-body.markdown-body table {
+  margin: 0.55em 0;
+}
+
+.msg-body.markdown-body h1,
+.msg-body.markdown-body h2,
+.msg-body.markdown-body h3,
+.msg-body.markdown-body h4 {
+  margin: 0.75em 0 0.35em;
+  line-height: 1.35;
+}
+
+.msg-body.markdown-body h1 { font-size: 1.25rem; }
+.msg-body.markdown-body h2 { font-size: 1.12rem; }
+.msg-body.markdown-body h3 { font-size: 1.02rem; }
+
+.msg-body.markdown-body ul,
+.msg-body.markdown-body ol {
+  padding-left: 1.35em;
+}
+
+.msg-body.markdown-body li + li {
+  margin-top: 0.25em;
+}
+
+.msg-body.markdown-body code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.92em;
+}
+
+.msg-body.markdown-body pre {
+  padding: 10px 12px;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.msg-body.markdown-body pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.msg-body.markdown-body blockquote {
+  margin-left: 0;
+  padding: 0.35em 0 0.35em 0.85em;
+  border-left: 3px solid rgba(83, 224, 164, 0.45);
+  color: var(--muted-2);
+}
+
+.msg-body.markdown-body a {
+  color: #7ec8ff;
+  text-decoration: underline;
+}
+
+.msg-body.markdown-body .md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.msg-body.markdown-body .md-table th,
+.msg-body.markdown-body .md-table td {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.msg-body.markdown-body .md-table th {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.msg-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tool-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 207, 102, 0.35);
+  background: rgba(255, 207, 102, 0.12);
+  font-size: 0.78rem;
+  color: #ffd98a;
+}
+
+.tool-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border: 1px dashed rgba(255, 207, 102, 0.35);
+  border-radius: var(--radius-sm);
+  color: #ffd98a;
+  font-size: 0.88rem;
+}
+
+.msg-guardrail {
+  border-color: rgba(255, 107, 107, 0.45);
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.guardrail-warning {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 207, 102, 0.35);
+  background: rgba(255, 207, 102, 0.1);
+  color: #ffd98a;
+  font-size: 0.82rem;
+}
+
+.msg-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.msg-feedback-label {
+  font-size: 0.8rem;
+  color: var(--muted-2);
+}
+
+.feedback-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.feedback-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.feedback-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.msg-feedback.feedback-sent-up .feedback-up,
+.msg-feedback.feedback-sent-down .feedback-down {
+  border-color: rgba(83, 224, 164, 0.45);
+  background: rgba(83, 224, 164, 0.15);
 }
 
 .msg.user {

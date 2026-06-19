@@ -172,6 +172,7 @@
             <img src="assets/pictures/person/monster-pink.gif" alt="AI助手" class="pixel-avatar" />
           </div>
           <div id="chatHistory" class="history"></div>
+          <p class="chat-safety-hint">🛡️ 对话受 AI Guardrail 安全审核保护，可对助手回复点赞或点踩反馈。</p>
           <div class="composer">
             <textarea
               id="chatInput"
@@ -669,9 +670,15 @@
                 <option value="openai">OpenAI / 兼容接口</option>
               </select>
             </label>
-            <label>
-              API Key
-              <input id="apiKey" type="password" placeholder="可选" />
+            <label class="config-file-label">
+              API 配置文件
+              <div class="config-file-row">
+                <button type="button" id="uploadConfigBtn" class="btn secondary">📁 上传配置文件</button>
+                <button type="button" id="clearConfigKeyBtn" class="btn secondary">清除密钥</button>
+                <button type="button" id="downloadConfigTemplateBtn" class="btn secondary">下载模板</button>
+                <input type="file" id="configFileInput" accept=".json,application/json" hidden />
+              </div>
+              <span id="configKeyStatus" class="config-key-status">未配置 API Key</span>
             </label>
             <label>
               Base URL
@@ -705,7 +712,7 @@
             </label>
           </div>
           <button id="saveConfig" class="btn">保存配置</button>
-          <small>说明：先运行 <code>node server.js</code> 时用 <code>/api</code>；直连 Ollama 用 <code>http://127.0.0.1:11434</code>；DeepSeek 用 <code>https://api.deepseek.com/v1</code> 并填写 API Key。配置仅存于本机浏览器。</small>
+          <small>说明：先运行 <code>node server.js</code> 时用 <code>/api</code>；直连 Ollama 用 <code>http://127.0.0.1:11434</code>；DeepSeek 用 <code>https://api.deepseek.com/v1</code> 并上传含 API Key 的 JSON 配置文件。配置仅存于本机浏览器。</small>
 
           <div class="model-guide">
             <h3 id="modelGuideTitle">📦 模型下载引导</h3>
@@ -736,7 +743,8 @@
     </main>
 
     <script src="./auth.js"></script>
-    <script src="./app.js?v=20260616-audio-fix"></script>
+    <script src="./markdown.js"></script>
+    <script src="./app.js?v=20260619-chat-tools"></script>
     <script src="./role-features.js"></script>
   </body>
 </html>

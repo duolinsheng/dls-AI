@@ -1,6 +1,13 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const {
+  checkInput,
+  checkOutput,
+  logGuardrailEvent,
+  submitFeedback,
+  getGuardrailSummary,
+} = require("./guardrails");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const MEMORY_DIR = path.join(DATA_DIR, "memory");
@@ -339,7 +346,21 @@ function clearMemory(req, body = {}) {
   return { ok: true };
 }
 
-function callTool(name, args) {
+async function validateToolArgs(name, args = {}) {
+  if (name === "search_dialect_dictionary") {
+    const queryCheck = await checkInput(String(args.query || ""), { source: "tool" });
+    if (!queryCheck.allowed) {
+      return { error: queryCheck.message || "词典查询参数未通过安全检查" };
+    }
+    return null;
+  }
+  return null;
+}
+
+async function callTool(name, args) {
+  const validationError = await validateToolArgs(name, args);
+  if (validationError) return validationError;
+
   if (name === "get_user_progress") return summarizeProgress(args);
   if (name === "search_dialect_dictionary") return searchDialectDictionary(args);
   if (name === "generate_practice_quiz") return generatePracticeQuiz(args);
@@ -378,10 +399,30 @@ async function handleMcpRequest(req, res, requestPath) {
       return sendJson(res, 200, { tools });
     }
 
+    if (requestPath === "/mcp/guardrail/check" && req.method === "POST") {
+      const body = await readRequestBody(req);
+      const stage = body.stage === "output" ? "output" : "input";
+      const checkResult =
+        stage === "output"
+          ? await checkOutput(body.text, body.context)
+          : await checkInput(body.text, body.context);
+      logGuardrailEvent(req, body, checkResult);
+      return sendJson(res, 200, checkResult);
+    }
+
+    if (requestPath === "/mcp/feedback" && req.method === "POST") {
+      const body = await readRequestBody(req);
+      return sendJson(res, 200, submitFeedback(req, body));
+    }
+
+    if (requestPath === "/mcp/feedback/summary" && req.method === "GET") {
+      return sendJson(res, 200, getGuardrailSummary());
+    }
+
     if (requestPath === "/mcp/call" && req.method === "POST") {
       const body = await readRequestBody(req);
       return sendJson(res, 200, {
-        result: callTool(body.tool || body.name, body.arguments || body.args || {}),
+        result: await callTool(body.tool || body.name, body.arguments || body.args || {}),
       });
     }
 
@@ -418,6 +459,7 @@ async function handleMcpRequest(req, res, requestPath) {
       }
       if (body.method === "tools/call") {
         const params = body.params || {};
+        const toolResult = await callTool(params.name, params.arguments || {});
         return sendJson(res, 200, {
           jsonrpc: "2.0",
           id: body.id,
@@ -425,7 +467,7 @@ async function handleMcpRequest(req, res, requestPath) {
             content: [
               {
                 type: "text",
-                text: JSON.stringify(callTool(params.name, params.arguments || {}), null, 2),
+                text: JSON.stringify(toolResult, null, 2),
               },
             ],
           },
