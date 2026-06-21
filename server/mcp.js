@@ -36,7 +36,7 @@ const tools = [
   },
   {
     name: "search_dialect_dictionary",
-    description: "查询方言词典，返回词形、注音、释义、分类和数据来源。",
+    description: "查询方言词典，返回词形、注音、释义。用户问某个词什么意思、怎么读时调用。",
     inputSchema: {
       type: "object",
       properties: {
@@ -63,7 +63,7 @@ const tools = [
   },
   {
     name: "generate_practice_quiz",
-    description: "基于方言词典动态生成选择题，适合课前热身或错题复习。",
+    description: "基于方言词典动态生成选择题练习。用户要求出题、练习、测验、考我时调用。返回可在对话中直接作答的题目列表。",
     inputSchema: {
       type: "object",
       properties: {

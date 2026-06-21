@@ -1061,6 +1061,134 @@ select:focus {
   background: rgba(83, 224, 164, 0.15);
 }
 
+.chat-tool-widgets {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.chat-tool-widget {
+  padding: 12px 14px;
+  border: 1px solid rgba(95, 183, 255, 0.28);
+  border-radius: var(--radius-sm);
+  background: rgba(95, 183, 255, 0.08);
+}
+
+.chat-widget-title {
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #9fd0ff;
+}
+
+.chat-quiz-question {
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.chat-quiz-options {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-quiz-option {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-quiz-option:disabled {
+  cursor: default;
+}
+
+.chat-quiz-option.correct {
+  border-color: rgba(83, 224, 164, 0.5);
+  background: rgba(83, 224, 164, 0.15);
+}
+
+.chat-quiz-option.incorrect {
+  border-color: rgba(255, 107, 107, 0.5);
+  background: rgba(255, 107, 107, 0.12);
+}
+
+.chat-quiz-feedback {
+  margin-top: 10px;
+  font-size: 0.88rem;
+}
+
+.chat-quiz-feedback.correct {
+  color: #8fe8c0;
+}
+
+.chat-quiz-feedback.incorrect {
+  color: #ff9f9f;
+}
+
+.chat-quiz-next {
+  margin-top: 8px;
+}
+
+.chat-quote-yue {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.chat-quote-zh,
+.chat-quote-pinyin {
+  margin: 0 0 4px;
+  color: var(--muted-2);
+}
+
+.chat-phrase-item {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+
+.chat-phrase-item:last-child {
+  border-bottom: none;
+}
+
+.chat-phrase-yue {
+  font-weight: 600;
+}
+
+.chat-phrase-zh,
+.chat-phrase-pinyin {
+  font-size: 0.88rem;
+  color: var(--muted-2);
+}
+
+.chat-dict-item {
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chat-dict-item strong {
+  margin-right: 8px;
+}
+
+.chat-dict-item p {
+  margin: 4px 0 0;
+  color: var(--muted-2);
+  font-size: 0.88rem;
+}
+
+.chat-progress-list {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.chat-progress-list li {
+  margin-bottom: 4px;
+}
+
 .msg.user {
   margin-left: auto;
   border-color: rgba(95, 183, 255, 0.34);

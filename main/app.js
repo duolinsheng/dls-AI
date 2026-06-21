@@ -127,11 +127,13 @@ function initNavigation() {
   navigateTo(lastPage);
 }
 
+const CHAT_SYSTEM_PROMPT =
+  "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言\n8. 你拥有工具，请在需要时主动调用：\n   - search_dialect_dictionary：查词典词条\n   - generate_practice_quiz：生成选择题练习\n   - get_user_progress：查看学习进度\n   - get_daily_quote：获取每日一句\n   - get_common_phrases：获取常用短语\n   - navigate_to_learning：打开测验/短语/每日一句/词典/声调等页面\n   用户要求练习、出题、查词、看进度、学短语时，务必先调用对应工具再回答\n9. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
+
 const conversation = [
   {
     role: "system",
-    content:
-      "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言\n8. 你可以调用工具辅助回答：search_dialect_dictionary（查词典）、generate_practice_quiz（出练习题）、get_user_progress（了解学习进度）。需要精确词条、出题或个性化建议时请主动调用\n9. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读",
+    content: CHAT_SYSTEM_PROMPT,
   },
 ];
 
@@ -442,6 +444,10 @@ function renderMessage(role, text, options = {}) {
     el.appendChild(toolsEl);
   }
 
+  if (options.toolResults?.length) {
+    renderChatToolWidgets(el, options.toolResults);
+  }
+
   if (role === "assistant" && options.feedback !== false && !options.guardrailBlocked) {
     const messageId = options.messageId || createMessageId();
     el.dataset.messageId = messageId;
@@ -478,6 +484,9 @@ function formatToolLabel(toolName) {
     search_dialect_dictionary: "词典查询",
     generate_practice_quiz: "生成测验",
     get_user_progress: "学习进度",
+    get_daily_quote: "每日一句",
+    get_common_phrases: "常用短语",
+    navigate_to_learning: "打开学习页",
   };
   return labels[toolName] || toolName;
 }
@@ -787,17 +796,81 @@ async function submitChatFeedback(messageId, rating, userInput, assistantReply, 
   }
 }
 
+const CLIENT_CHAT_TOOLS = [
+  {
+    name: "get_daily_quote",
+    description: "获取指定方言的「每日一句」学习例句，含方言文本、中文释义和注音。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dialect: {
+          type: "string",
+          enum: ["yue", "minnan", "shanghai", "sichuan"],
+          default: "yue",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_common_phrases",
+    description: "获取指定方言的常用短语列表，可按场景分类。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dialect: {
+          type: "string",
+          enum: ["yue", "minnan", "shanghai", "sichuan"],
+          default: "yue",
+        },
+        category: {
+          type: "string",
+          enum: ["greeting", "daily", "food", "shopping", "emotion"],
+          default: "greeting",
+        },
+        limit: { type: "integer", minimum: 1, maximum: 8, default: 4 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "navigate_to_learning",
+    description: "在应用中打开指定学习功能页面，如测验、短语、每日一句、词典、声调练习、生词本。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page: {
+          type: "string",
+          enum: ["quiz", "phrases", "daily", "dictionary", "tones", "wordbook"],
+        },
+      },
+      required: ["page"],
+      additionalProperties: false,
+    },
+  },
+];
+
 async function fetchMcpTools() {
   if (mcpToolsCache) return mcpToolsCache;
   try {
     const res = await fetch("/mcp/tools");
-    if (!res.ok) return [];
+    if (!res.ok) return [...CLIENT_CHAT_TOOLS];
     const data = await res.json();
     mcpToolsCache = Array.isArray(data.tools) ? data.tools : [];
     return mcpToolsCache;
   } catch {
-    return [];
+    return [...CLIENT_CHAT_TOOLS];
   }
+}
+
+async function fetchChatTools() {
+  const serverTools = await fetchMcpTools();
+  const names = new Set(serverTools.map((tool) => tool.name));
+  const merged = [...serverTools];
+  for (const tool of CLIENT_CHAT_TOOLS) {
+    if (!names.has(tool.name)) merged.push(tool);
+  }
+  return merged;
 }
 
 function getUserProgressPayload() {
@@ -875,6 +948,9 @@ async function requestChatCompletion(messages, options = {}) {
 
   if (options.tools?.length) {
     body.tools = options.tools;
+    if (useOpenAIStyle) {
+      body.tool_choice = "auto";
+    }
   }
 
   if (useOpenAIStyle) {
@@ -935,9 +1011,10 @@ async function requestChatCompletion(messages, options = {}) {
 const MAX_TOOL_ROUNDS = 6;
 
 async function runChatWithTools(messages, onToolCall) {
-  const mcpTools = await fetchMcpTools();
-  let apiTools = mcpTools.length ? toApiTools(mcpTools) : null;
+  const chatTools = await fetchChatTools();
+  let apiTools = chatTools.length ? toApiTools(chatTools) : null;
   const usedTools = [];
+  const toolResults = [];
   const workingMessages = [...messages];
   let toolsDisabled = false;
 
@@ -963,6 +1040,8 @@ async function runChatWithTools(messages, onToolCall) {
       return {
         content: (assistantMsg.content || "").trim(),
         usedTools,
+        toolResults,
+        toolsDisabled,
       };
     }
 
@@ -978,7 +1057,8 @@ async function runChatWithTools(messages, onToolCall) {
       const toolArgs = parseToolArguments(fn.arguments);
       usedTools.push(toolName);
       onToolCall?.(toolName, toolArgs);
-      const result = await callMcpTool(toolName, toolArgs);
+      const result = await executeChatTool(toolName, toolArgs);
+      toolResults.push({ name: toolName, args: toolArgs, result });
       const toolMessage = {
         role: "tool",
         content: JSON.stringify(result, null, 2),
@@ -2510,8 +2590,7 @@ function clearConversation() {
   conversation.length = 0;
   conversation.push({
     role: "system",
-    content:
-      "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言\n8. 你可以调用工具辅助回答：search_dialect_dictionary（查词典）、generate_practice_quiz（出练习题）、get_user_progress（了解学习进度）。需要精确词条、出题或个性化建议时请主动调用\n9. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读",
+    content: CHAT_SYSTEM_PROMPT,
   });
   chatHistoryEl.innerHTML = "";
   localStorage.removeItem(CHAT_STORAGE_KEY);
@@ -2560,12 +2639,30 @@ sendChatBtn.addEventListener("click", async () => {
 
   showLoading(true);
   try {
-    const { content: reply, usedTools } = await runChatWithTools(conversation, (toolName) => {
-      showToolStatus(toolName);
-    });
+    let { content: reply, usedTools = [], toolResults = [] } = await runChatWithTools(
+      conversation,
+      (toolName) => {
+        showToolStatus(toolName);
+      },
+    );
     removeToolStatus();
-    if (!reply) {
+
+    if (!usedTools.length) {
+      const intentFallback = await runIntentToolFallback(input);
+      if (intentFallback.usedTools.length) {
+        usedTools = intentFallback.usedTools;
+        toolResults = intentFallback.toolResults;
+        if (!reply) {
+          reply = buildToolFallbackReply(intentFallback);
+        }
+      }
+    }
+
+    if (!reply && !toolResults.length) {
       throw new Error("模型返回为空，请检查模型是否支持工具调用。");
+    }
+    if (!reply && toolResults.length) {
+      reply = buildToolFallbackReply({ usedTools, toolResults });
     }
 
     const outputGuard = await checkGuardrail(reply, "output", { source: "chat" });
@@ -2587,6 +2684,7 @@ sendChatBtn.addEventListener("click", async () => {
     conversation.push({ role: "assistant", content: safeReply });
     renderMessage("assistant", safeReply, {
       toolCalls: usedTools,
+      toolResults,
       userInput: input,
       messageId: createMessageId(),
       guardrailWarning: warnMsg || undefined,
@@ -3096,6 +3194,329 @@ const dialectLearningData = {
     },
   },
 };
+
+const LEARNING_PAGE_LABELS = {
+  quiz: "学习测验",
+  phrases: "常用短语",
+  daily: "每日一句",
+  dictionary: "方言词典",
+  tones: "声调练习",
+  wordbook: "生词本",
+};
+
+async function executeChatTool(name, args = {}) {
+  if (name === "get_user_progress") {
+    return callMcpTool(name, args);
+  }
+  if (name === "get_daily_quote") {
+    const dialect = ["yue", "minnan", "shanghai", "sichuan"].includes(args.dialect) ? args.dialect : "yue";
+    const quotes = dialectLearningData[dialect]?.quotes || [];
+    if (!quotes.length) return { error: "暂无该方言每日一句数据" };
+    const quote = quotes[new Date().getDate() % quotes.length];
+    return { dialect, label: getDialectMeta(dialect).label, ...quote };
+  }
+  if (name === "get_common_phrases") {
+    const dialect = ["yue", "minnan", "shanghai", "sichuan"].includes(args.dialect) ? args.dialect : "yue";
+    const category = args.category || "greeting";
+    const limit = Math.min(Math.max(Number(args.limit) || 4, 1), 8);
+    const phrases = dialectLearningData[dialect]?.phrases?.[category] || [];
+    return {
+      dialect,
+      category,
+      label: getDialectMeta(dialect).label,
+      phrases: phrases.slice(0, limit),
+    };
+  }
+  if (name === "navigate_to_learning") {
+    const page = args.page || "quiz";
+    if (!LEARNING_PAGE_LABELS[page]) return { error: "未知页面" };
+    navigateTo(page);
+    return { ok: true, page, label: LEARNING_PAGE_LABELS[page] };
+  }
+  return callMcpTool(name, args);
+}
+
+function buildToolFallbackReply({ usedTools, toolResults }) {
+  if (usedTools.includes("generate_practice_quiz")) {
+    return "我为你准备了一组练习题，请直接在下方作答。";
+  }
+  if (usedTools.includes("get_daily_quote")) {
+    return "这是今天的方言例句，你可以跟读练习。";
+  }
+  if (usedTools.includes("get_common_phrases")) {
+    return "以下是你需要的常用短语，点击可朗读。";
+  }
+  if (usedTools.includes("search_dialect_dictionary")) {
+    const entries = toolResults.find((item) => item.name === "search_dialect_dictionary")?.result;
+    if (Array.isArray(entries) && entries.length) {
+      return `我在词典里找到了 ${entries.length} 条相关结果，详见下方卡片。`;
+    }
+  }
+  if (usedTools.includes("get_user_progress")) {
+    return "这是你当前的学习进度摘要。";
+  }
+  if (usedTools.includes("navigate_to_learning")) {
+    const nav = toolResults.find((item) => item.name === "navigate_to_learning")?.result;
+    return nav?.label ? `已为你打开「${nav.label}」页面。` : "已打开对应学习页面。";
+  }
+  return "已为你调用学习工具，请查看下方内容。";
+}
+
+async function runIntentToolFallback(userInput) {
+  const dialect = detectDialectFromText(userInput);
+  const usedTools = [];
+  const toolResults = [];
+
+  if (/出.*(题|练习|测验)|来.*(道|组|个).*(题|练习)|练习一下|考我|做题/i.test(userInput)) {
+    const args = { dialect, count: 5, difficulty: "medium" };
+    const result = await executeChatTool("generate_practice_quiz", args);
+    usedTools.push("generate_practice_quiz");
+    toolResults.push({ name: "generate_practice_quiz", args, result });
+    return { usedTools, toolResults };
+  }
+
+  if (/每日一句|今天.*(句|学)|例句/i.test(userInput)) {
+    const args = { dialect };
+    const result = await executeChatTool("get_daily_quote", args);
+    usedTools.push("get_daily_quote");
+    toolResults.push({ name: "get_daily_quote", args, result });
+    return { usedTools, toolResults };
+  }
+
+  if (/常用短语|问候|打招呼|购物|吃饭/i.test(userInput)) {
+    const category = /购物|买/.test(userInput)
+      ? "shopping"
+      : /吃|饭/.test(userInput)
+        ? "food"
+        : "greeting";
+    const args = { dialect, category, limit: 4 };
+    const result = await executeChatTool("get_common_phrases", args);
+    usedTools.push("get_common_phrases");
+    toolResults.push({ name: "get_common_phrases", args, result });
+    return { usedTools, toolResults };
+  }
+
+  if (/学习进度|学了多久|打卡|成就/i.test(userInput)) {
+    const result = await executeChatTool("get_user_progress", {});
+    usedTools.push("get_user_progress");
+    toolResults.push({ name: "get_user_progress", args: {}, result });
+    return { usedTools, toolResults };
+  }
+
+  if (/打开|去.*(测验|词典|短语|声调)/i.test(userInput)) {
+    const page = /词典/.test(userInput)
+      ? "dictionary"
+      : /短语/.test(userInput)
+        ? "phrases"
+        : /声调/.test(userInput)
+          ? "tones"
+          : "quiz";
+    const args = { page };
+    const result = await executeChatTool("navigate_to_learning", args);
+    usedTools.push("navigate_to_learning");
+    toolResults.push({ name: "navigate_to_learning", args, result });
+    return { usedTools, toolResults };
+  }
+
+  return { usedTools, toolResults };
+}
+
+function renderChatToolWidgets(messageEl, toolResults) {
+  const wrap = document.createElement("div");
+  wrap.className = "chat-tool-widgets";
+  for (const item of toolResults) {
+    const widget = createChatToolWidget(item.name, item.result, item.args);
+    if (widget) wrap.appendChild(widget);
+  }
+  if (wrap.childElementCount) {
+    messageEl.appendChild(wrap);
+  }
+}
+
+function createChatToolWidget(name, result, args = {}) {
+  if (name === "generate_practice_quiz" && Array.isArray(result) && result.length) {
+    return createChatQuizWidget(result);
+  }
+  if (name === "get_daily_quote" && result && !result.error) {
+    return createChatQuoteWidget(result);
+  }
+  if (name === "get_common_phrases" && result?.phrases?.length) {
+    return createChatPhrasesWidget(result);
+  }
+  if (name === "search_dialect_dictionary" && Array.isArray(result) && result.length) {
+    return createChatDictWidget(result, args);
+  }
+  if (name === "get_user_progress" && result && !result.error) {
+    return createChatProgressWidget(result);
+  }
+  if (name === "navigate_to_learning" && result?.ok) {
+    return createChatNavWidget(result);
+  }
+  return null;
+}
+
+function createChatQuizWidget(questions) {
+  const wrap = document.createElement("div");
+  wrap.className = "chat-tool-widget chat-quiz-widget";
+  let index = 0;
+  let score = 0;
+
+  function renderQuestion() {
+    const q = questions[index];
+    wrap.innerHTML = `
+      <div class="chat-widget-title">🎯 对话练习（${index + 1}/${questions.length}）</div>
+      <div class="chat-quiz-question">${q.question}</div>
+      <div class="chat-quiz-options"></div>
+      <div class="chat-quiz-feedback"></div>
+    `;
+    const optionsEl = wrap.querySelector(".chat-quiz-options");
+    const feedbackEl = wrap.querySelector(".chat-quiz-feedback");
+    q.options.forEach((option, optIndex) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chat-quiz-option";
+      btn.textContent = option;
+      btn.addEventListener("click", () => {
+        wrap.querySelectorAll(".chat-quiz-option").forEach((el) => {
+          el.disabled = true;
+        });
+        if (optIndex === q.correct) {
+          btn.classList.add("correct");
+          feedbackEl.textContent = "✅ 正确！";
+          feedbackEl.className = "chat-quiz-feedback correct";
+          score += 1;
+        } else {
+          btn.classList.add("incorrect");
+          wrap.querySelectorAll(".chat-quiz-option")[q.correct]?.classList.add("correct");
+          feedbackEl.textContent = `❌ 正确答案：${q.options[q.correct]}`;
+          feedbackEl.className = "chat-quiz-feedback incorrect";
+        }
+        const nextBtn = document.createElement("button");
+        nextBtn.type = "button";
+        nextBtn.className = "btn secondary chat-quiz-next";
+        nextBtn.textContent = index + 1 >= questions.length ? "查看成绩" : "下一题";
+        nextBtn.addEventListener("click", () => {
+          index += 1;
+          if (index >= questions.length) {
+            wrap.innerHTML = `
+              <div class="chat-widget-title">🎉 练习完成</div>
+              <p class="chat-quiz-summary">得分：${score}/${questions.length}</p>
+              <button type="button" class="btn secondary chat-open-quiz">去测验页继续</button>
+            `;
+            wrap.querySelector(".chat-open-quiz").addEventListener("click", () => navigateTo("quiz"));
+          } else {
+            renderQuestion();
+          }
+        });
+        feedbackEl.appendChild(nextBtn);
+      });
+      optionsEl.appendChild(btn);
+    });
+  }
+
+  renderQuestion();
+  return wrap;
+}
+
+function createChatQuoteWidget(quote) {
+  const wrap = document.createElement("div");
+  wrap.className = "chat-tool-widget chat-quote-widget";
+  wrap.innerHTML = `
+    <div class="chat-widget-title">📅 ${quote.label || "方言"}每日一句</div>
+    <p class="chat-quote-yue">${quote.yue || ""}</p>
+    <p class="chat-quote-zh">${quote.zh || ""}</p>
+    <p class="chat-quote-pinyin">${quote.pinyin || ""}</p>
+    <button type="button" class="btn secondary chat-speak-btn">🔊 朗读</button>
+  `;
+  wrap.querySelector(".chat-speak-btn").addEventListener("click", () => {
+    if (typeof speakLearningItem === "function") {
+      speakLearningItem(quote.yue, quote.pinyin, quote.dialect || "yue");
+    } else if (typeof speakText === "function") {
+      speakText(quote.yue);
+    }
+  });
+  return wrap;
+}
+
+function createChatPhrasesWidget(data) {
+  const wrap = document.createElement("div");
+  wrap.className = "chat-tool-widget chat-phrases-widget";
+  const title = document.createElement("div");
+  title.className = "chat-widget-title";
+  title.textContent = `📝 ${data.label || "方言"}常用短语`;
+  wrap.appendChild(title);
+  for (const phrase of data.phrases) {
+    const item = document.createElement("div");
+    item.className = "chat-phrase-item";
+    item.innerHTML = `
+      <div class="chat-phrase-yue">${phrase.yue}</div>
+      <div class="chat-phrase-zh">${phrase.zh}</div>
+      <div class="chat-phrase-pinyin">${phrase.pinyin || ""}</div>
+    `;
+    item.addEventListener("click", () => {
+      if (typeof speakLearningItem === "function") {
+        speakLearningItem(phrase.yue, phrase.pinyin, data.dialect || "yue");
+      }
+    });
+    wrap.appendChild(item);
+  }
+  return wrap;
+}
+
+function createChatDictWidget(entries, args) {
+  const wrap = document.createElement("div");
+  wrap.className = "chat-tool-widget chat-dict-widget";
+  wrap.innerHTML = `<div class="chat-widget-title">📖 词典结果</div>`;
+  const list = document.createElement("div");
+  list.className = "chat-dict-list";
+  for (const entry of entries.slice(0, 6)) {
+    const row = document.createElement("div");
+    row.className = "chat-dict-item";
+    row.innerHTML = `
+      <strong>${entry.term || entry.trad || ""}</strong>
+      <span>${entry.reading || ""}</span>
+      <p>${entry.meaning || ""}</p>
+    `;
+    list.appendChild(row);
+  }
+  wrap.appendChild(list);
+  const openBtn = document.createElement("button");
+  openBtn.type = "button";
+  openBtn.className = "btn secondary";
+  openBtn.textContent = "在词典页查看";
+  openBtn.addEventListener("click", () => {
+    if (args?.query && yueDictSearchEl) yueDictSearchEl.value = args.query;
+    navigateTo("dictionary");
+  });
+  wrap.appendChild(openBtn);
+  return wrap;
+}
+
+function createChatProgressWidget(progress) {
+  const wrap = document.createElement("div");
+  wrap.className = "chat-tool-widget chat-progress-widget";
+  wrap.innerHTML = `
+    <div class="chat-widget-title">📊 学习进度</div>
+    <ul class="chat-progress-list">
+      <li>已学短语：<strong>${progress.phrasesLearned || 0}</strong></li>
+      <li>完成测验：<strong>${progress.quizCompleted || 0}</strong></li>
+      <li>收藏内容：<strong>${progress.favoritesCount || 0}</strong></li>
+      <li>生词本：<strong>${progress.wordbookCount || 0}</strong></li>
+      <li>连续打卡：<strong>${progress.checkinStreak || 0}</strong> 天</li>
+    </ul>
+  `;
+  return wrap;
+}
+
+function createChatNavWidget(result) {
+  const wrap = document.createElement("div");
+  wrap.className = "chat-tool-widget chat-nav-widget";
+  wrap.innerHTML = `
+    <div class="chat-widget-title">✅ 已打开「${result.label}」</div>
+    <p>你可以在对应页面继续学习。</p>
+  `;
+  return wrap;
+}
 
 const quizQuestions = {
   easy: [
