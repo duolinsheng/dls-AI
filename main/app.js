@@ -128,7 +128,7 @@ function initNavigation() {
 }
 
 const CHAT_SYSTEM_PROMPT =
-  "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言\n8. 你拥有工具，请在需要时主动调用：\n   - search_dialect_dictionary：查词典词条\n   - generate_practice_quiz：生成选择题练习\n   - get_user_progress：查看学习进度\n   - get_daily_quote：获取每日一句\n   - get_common_phrases：获取常用短语\n   - navigate_to_learning：打开测验/短语/每日一句/词典/声调等页面\n   用户要求练习、出题、查词、看进度、学短语时，务必先调用对应工具再回答\n9. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
+  "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言\n8. 学习类问题（练习、每日一句、短语、进度、查词、打开页面）由系统自动处理工具调用，你只需给出友好回答或补充解释即可\n9. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
 
 const conversation = [
   {
@@ -2639,22 +2639,30 @@ sendChatBtn.addEventListener("click", async () => {
 
   showLoading(true);
   try {
-    let { content: reply, usedTools = [], toolResults = [] } = await runChatWithTools(
-      conversation,
-      (toolName) => {
-        showToolStatus(toolName);
-      },
-    );
-    removeToolStatus();
+    // 优先尝试意图识别，直接调用工具（绕过模型 function calling）
+    let usedTools = [];
+    let toolResults = [];
+    let reply = "";
 
+    const intentMatch = await runIntentToolFallback(input);
+    if (intentMatch.usedTools.length) {
+      usedTools = intentMatch.usedTools;
+      toolResults = intentMatch.toolResults;
+      reply = buildToolFallbackReply(intentMatch);
+    }
+
+    // 如果意图识别未匹配，再尝试让模型调用工具
     if (!usedTools.length) {
-      const intentFallback = await runIntentToolFallback(input);
-      if (intentFallback.usedTools.length) {
-        usedTools = intentFallback.usedTools;
-        toolResults = intentFallback.toolResults;
-        if (!reply) {
-          reply = buildToolFallbackReply(intentFallback);
-        }
+      const modelResult = await runChatWithTools(conversation, (toolName) => {
+        showToolStatus(toolName);
+      });
+      removeToolStatus();
+      if (modelResult.usedTools?.length) {
+        usedTools = modelResult.usedTools;
+        toolResults = modelResult.toolResults || [];
+        reply = modelResult.content || reply;
+      } else {
+        removeToolStatus();
       }
     }
 
@@ -3263,11 +3271,18 @@ function buildToolFallbackReply({ usedTools, toolResults }) {
 }
 
 async function runIntentToolFallback(userInput) {
-  const dialect = detectDialectFromText(userInput);
+  const raw = userInput || "";
+  const dialect = detectDialectFromText(raw);
   const usedTools = [];
   const toolResults = [];
 
-  if (/出.*(题|练习|测验)|来.*(道|组|个).*(题|练习)|练习一下|考我|做题/i.test(userInput)) {
+  const lower = raw.toLowerCase();
+
+  // 练习/出题意图（最优先）
+  if (
+    /(出|来|做|考|测).*?(题|练习|测验|quiz)|练习一下|考考我|来几道|想做题|帮我.*?(题|练习)/i.test(raw) ||
+    /practice|quiz|exercise/i.test(lower)
+  ) {
     const args = { dialect, count: 5, difficulty: "medium" };
     const result = await executeChatTool("generate_practice_quiz", args);
     usedTools.push("generate_practice_quiz");
@@ -3275,7 +3290,11 @@ async function runIntentToolFallback(userInput) {
     return { usedTools, toolResults };
   }
 
-  if (/每日一句|今天.*(句|学)|例句/i.test(userInput)) {
+  // 每日一句 / 例句
+  if (
+    /每日一句|今天.*?(句|学|例)|例句|来一句|学一句|方言例句/i.test(raw) ||
+    /daily.*quote|example sentence/i.test(lower)
+  ) {
     const args = { dialect };
     const result = await executeChatTool("get_daily_quote", args);
     usedTools.push("get_daily_quote");
@@ -3283,12 +3302,18 @@ async function runIntentToolFallback(userInput) {
     return { usedTools, toolResults };
   }
 
-  if (/常用短语|问候|打招呼|购物|吃饭/i.test(userInput)) {
-    const category = /购物|买/.test(userInput)
+  // 常用短语 / 场景表达
+  if (
+    /常用短语|场景|怎么说|如何说|问候|打招呼|购物|买东西|吃饭|点餐|表达/i.test(raw) ||
+    /phrase|greeting|shopping|food/i.test(lower)
+  ) {
+    const category = /购物|买|shop/i.test(raw)
       ? "shopping"
-      : /吃|饭/.test(userInput)
+      : /吃|饭|food|餐/i.test(raw)
         ? "food"
-        : "greeting";
+        : /情绪|心情|emotion|生气|高兴/i.test(raw)
+          ? "emotion"
+          : "greeting";
     const args = { dialect, category, limit: 4 };
     const result = await executeChatTool("get_common_phrases", args);
     usedTools.push("get_common_phrases");
@@ -3296,25 +3321,41 @@ async function runIntentToolFallback(userInput) {
     return { usedTools, toolResults };
   }
 
-  if (/学习进度|学了多久|打卡|成就/i.test(userInput)) {
+  // 学习进度
+  if (/学习进度|学了多久|打卡|成就|统计|完成.*(题|练习)/i.test(raw) || /progress|streak|achievement/i.test(lower)) {
     const result = await executeChatTool("get_user_progress", {});
     usedTools.push("get_user_progress");
     toolResults.push({ name: "get_user_progress", args: {}, result });
     return { usedTools, toolResults };
   }
 
-  if (/打开|去.*(测验|词典|短语|声调)/i.test(userInput)) {
-    const page = /词典/.test(userInput)
+  // 打开学习页面
+  if (/打开|去.*?(测验|词典|短语|声调|生词)|跳转|切换到/i.test(raw)) {
+    const page = /词典|查词|dictionary/i.test(raw)
       ? "dictionary"
-      : /短语/.test(userInput)
+      : /短语|phrase/i.test(raw)
         ? "phrases"
-        : /声调/.test(userInput)
+        : /声调|tone/i.test(raw)
           ? "tones"
-          : "quiz";
+          : /生词|wordbook/i.test(raw)
+            ? "wordbook"
+            : "quiz";
     const args = { page };
     const result = await executeChatTool("navigate_to_learning", args);
     usedTools.push("navigate_to_learning");
     toolResults.push({ name: "navigate_to_learning", args, result });
+    return { usedTools, toolResults };
+  }
+
+  // 兜底：如果用户明确提到方言/学习/粤语/闽南等，给他每日一句
+  if (
+    /(粤语|闽南|上海话|四川话|方言|学习|学.*话|怎么.*(说|讲))/i.test(raw) ||
+    /(cantonese|hokkien|shanghainese|sichuanese)/i.test(lower)
+  ) {
+    const args = { dialect };
+    const result = await executeChatTool("get_daily_quote", args);
+    usedTools.push("get_daily_quote");
+    toolResults.push({ name: "get_daily_quote", args, result });
     return { usedTools, toolResults };
   }
 
