@@ -7,7 +7,7 @@ const GUARDRAIL_TIMEOUT_MS = Number(process.env.GUARDRAIL_TIMEOUT_MS) || 15000;
 const AI_ENABLED = process.env.GUARDRAIL_AI_ENABLED !== "0";
 
 const JUDGE_SYSTEM_PROMPT = `你是「多邻省 AI」方言学习助手的安全审核员，负责判断用户输入或模型输出是否安全。
-应用范围：粤语、闽南语、上海话、四川话学习、翻译、发音、词典与测验。
+应用范围：粤语、台山话、闽南话/Hokkien、上海话/Shanghainese、潮州话/Teochew、温州话/Wenzhounese、四川话学习、翻译、发音、词典与测验。
 
 应放行（allowed=true）：
 - 方言学习、翻译、注音、语法、词汇、测验相关提问

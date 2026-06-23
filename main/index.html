@@ -57,7 +57,7 @@
       <section id="page-home" class="page active">
         <header class="hero">
           <h1>多邻省 AI 学习助手</h1>
-          <p>支持 Ollama AI 粤语、闽南语、上海话、四川话对话与学习</p>
+          <p>支持 Ollama AI 多种方言对话与学习</p>
         </header>
 
         <div class="features-grid">
@@ -69,12 +69,12 @@
           <div class="feature-card" onclick="navigateTo('translate')">
             <div class="feature-icon">🌐</div>
             <h3>多方言翻译</h3>
-            <p>粤语、闽南语、上海话、四川话翻译与学习</p>
+            <p>粤语、台山话、闽南话、上海话、潮州话、温州话等翻译与学习</p>
           </div>
           <div class="feature-card" onclick="navigateTo('dictionary')">
             <div class="feature-icon">📖</div>
             <h3>方言词典</h3>
-            <p>查询粤语、闽南语、上海话、四川话词汇和发音</p>
+            <p>查询已接入本地词典的方言词汇和发音</p>
           </div>
           <div class="feature-card" onclick="navigateTo('phrases')">
             <div class="feature-icon">📝</div>
@@ -194,10 +194,20 @@
               <select id="direction">
                 <option value="zh_to_yue">中文 → 粤语</option>
                 <option value="yue_to_zh">粤语 → 中文</option>
+                <option value="zh_to_taishanese">中文 → Taishanese (台山话)</option>
+                <option value="taishanese_to_zh">Taishanese (台山话) → 中文</option>
                 <option value="zh_to_minnan">中文 → 闽南语</option>
                 <option value="minnan_to_zh">闽南语 → 中文</option>
+                <option value="zh_to_hokkien">中文 → Hokkien (闽南话)</option>
+                <option value="hokkien_to_zh">Hokkien (闽南话) → 中文</option>
                 <option value="zh_to_shanghai">中文 → 上海话</option>
                 <option value="shanghai_to_zh">上海话 → 中文</option>
+                <option value="zh_to_shanghainese">中文 → Shanghainese (上海话)</option>
+                <option value="shanghainese_to_zh">Shanghainese (上海话) → 中文</option>
+                <option value="zh_to_teochew">中文 → Teochew (潮州话)</option>
+                <option value="teochew_to_zh">Teochew (潮州话) → 中文</option>
+                <option value="zh_to_wenzhounese">中文 → Wenzhounese (温州话)</option>
+                <option value="wenzhounese_to_zh">Wenzhounese (温州话) → 中文</option>
                 <option value="zh_to_sichuan">中文 → 四川话</option>
                 <option value="sichuan_to_zh">四川话 → 中文</option>
               </select>
@@ -235,8 +245,13 @@
               方言
               <select id="dictDialect">
                 <option value="yue">粤语</option>
+                <option value="taishanese">Taishanese (台山话)</option>
                 <option value="minnan">闽南语</option>
+                <option value="hokkien">Hokkien (闽南话)</option>
                 <option value="shanghai">上海话</option>
+                <option value="shanghainese">Shanghainese (上海话)</option>
+                <option value="teochew">Teochew (潮州话)</option>
+                <option value="wenzhounese">Wenzhounese (温州话)</option>
                 <option value="sichuan">四川话</option>
               </select>
             </label>
@@ -297,8 +312,13 @@
               学习方言
               <select id="phraseDialect">
                 <option value="yue">粤语</option>
+                <option value="taishanese">Taishanese (台山话)</option>
                 <option value="minnan">闽南语</option>
+                <option value="hokkien">Hokkien (闽南话)</option>
                 <option value="shanghai">上海话</option>
+                <option value="shanghainese">Shanghainese (上海话)</option>
+                <option value="teochew">Teochew (潮州话)</option>
+                <option value="wenzhounese">Wenzhounese (温州话)</option>
                 <option value="sichuan">四川话</option>
               </select>
             </label>
@@ -323,8 +343,13 @@
               学习方言
               <select id="dailyDialect">
                 <option value="yue">粤语</option>
+                <option value="taishanese">Taishanese (台山话)</option>
                 <option value="minnan">闽南语</option>
+                <option value="hokkien">Hokkien (闽南话)</option>
                 <option value="shanghai">上海话</option>
+                <option value="shanghainese">Shanghainese (上海话)</option>
+                <option value="teochew">Teochew (潮州话)</option>
+                <option value="wenzhounese">Wenzhounese (温州话)</option>
                 <option value="sichuan">四川话</option>
               </select>
             </label>
@@ -368,8 +393,13 @@
               <div class="quiz-options">
                 <select id="quizDialect">
                   <option value="yue">粤语</option>
+                  <option value="taishanese">Taishanese (台山话)</option>
                   <option value="minnan">闽南语</option>
+                  <option value="hokkien">Hokkien (闽南话)</option>
                   <option value="shanghai">上海话</option>
+                  <option value="shanghainese">Shanghainese (上海话)</option>
+                  <option value="teochew">Teochew (潮州话)</option>
+                  <option value="wenzhounese">Wenzhounese (温州话)</option>
                   <option value="sichuan">四川话</option>
                 </select>
                 <select id="quizDifficulty">

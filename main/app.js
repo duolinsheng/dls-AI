@@ -128,7 +128,7 @@ function initNavigation() {
 }
 
 const CHAT_SYSTEM_PROMPT =
-  "你是一个耐心的方言学习助手，精通粤语、闽南语、上海话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语，请提供粤拼和标准中文解释\n2. 若涉及闽南语，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话，请提供常用罗马化/IPA 和标准中文解释\n4. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n5. 解释方言字词时，给出常见写法、注音和生活场景例句\n6. 如有词典参考信息，请优先参考其中的注音和含义\n7. 用户指定方言时，不要混用另一种方言\n8. 学习类问题（练习、每日一句、短语、进度、查词、打开页面）由系统自动处理工具调用，你只需给出友好回答或补充解释即可\n9. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
+  "你是一个耐心的方言学习助手，精通粤语、台山话、上海话、闽南话、潮州话、温州话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语/台山话，请提供粤拼、台山话常用读音提示或本地罗马化，并给出标准中文解释\n2. 若涉及闽南话/Hokkien，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话/温州话，请提供常用吴语罗马化/IPA 或读音提示和标准中文解释\n4. 若涉及潮州话，请提供潮州话拼音/白话字或读音提示和标准中文解释\n5. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n6. 解释方言字词时，给出常见写法、注音和生活场景例句\n7. 如有词典参考信息，请优先参考其中的注音和含义\n8. 用户指定方言时，不要混用另一种方言\n9. 学习类问题（练习、每日一句、短语、进度、查词、打开页面）由系统自动处理工具调用，你只需给出友好回答或补充解释即可\n10. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
 
 const conversation = [
   {
@@ -234,6 +234,13 @@ const DIALECTS = {
     speechLang: "zh-HK",
     dictionaryLabel: "粤语词典",
   },
+  taishanese: {
+    label: "Taishanese (台山话)",
+    readingLabel: "读音提示",
+    altLabel: "本地罗马化",
+    speechLang: "zh-CN",
+    dictionaryLabel: "台山话词典",
+  },
   minnan: {
     label: "闽南语",
     readingLabel: "台罗",
@@ -241,12 +248,40 @@ const DIALECTS = {
     speechLang: "zh-TW",
     dictionaryLabel: "闽南语词典",
   },
+  hokkien: {
+    label: "Hokkien (闽南话)",
+    readingLabel: "台罗",
+    altLabel: "白话字",
+    speechLang: "zh-TW",
+    dictionaryLabel: "闽南话词典",
+  },
   shanghai: {
     label: "上海话",
     readingLabel: "罗马化",
     altLabel: "IPA",
     speechLang: "zh-CN",
     dictionaryLabel: "上海话词典",
+  },
+  shanghainese: {
+    label: "Shanghainese (上海话)",
+    readingLabel: "罗马化",
+    altLabel: "IPA",
+    speechLang: "zh-CN",
+    dictionaryLabel: "上海话词典",
+  },
+  teochew: {
+    label: "Teochew (潮州话)",
+    readingLabel: "潮州话拼音",
+    altLabel: "白话字",
+    speechLang: "zh-CN",
+    dictionaryLabel: "潮州话词典",
+  },
+  wenzhounese: {
+    label: "Wenzhounese (温州话)",
+    readingLabel: "读音提示",
+    altLabel: "IPA",
+    speechLang: "zh-CN",
+    dictionaryLabel: "温州话词典",
   },
   sichuan: {
     label: "四川话",
@@ -264,6 +299,8 @@ const DIALECTS = {
   },
 };
 
+const SUPPORTED_DIALECT_IDS = Object.freeze(Object.keys(DIALECTS).filter((dialect) => dialect !== "unknown"));
+
 function getDialectMeta(dialect) {
   return DIALECTS[dialect] || DIALECTS.yue;
 }
@@ -275,11 +312,23 @@ const REGIONAL_DIALECTS = {
     readingLabel: DIALECTS.minnan.readingLabel,
     altLabel: DIALECTS.minnan.altLabel,
   },
+  hokkien: {
+    label: DIALECTS.hokkien.label,
+    file: "read/minnan_dictionary.csv",
+    readingLabel: DIALECTS.hokkien.readingLabel,
+    altLabel: DIALECTS.hokkien.altLabel,
+  },
   shanghai: {
     label: DIALECTS.shanghai.label,
     file: "read/shanghai_dictionary.csv",
     readingLabel: DIALECTS.shanghai.readingLabel,
     altLabel: DIALECTS.shanghai.altLabel,
+  },
+  shanghainese: {
+    label: DIALECTS.shanghainese.label,
+    file: "read/shanghai_dictionary.csv",
+    readingLabel: DIALECTS.shanghainese.readingLabel,
+    altLabel: DIALECTS.shanghainese.altLabel,
   },
   sichuan: {
     label: DIALECTS.sichuan.label,
@@ -297,7 +346,9 @@ let minnanDictionaryLoaded = false;
 let minnanDictionaryLoadPromise = null;
 const regionalDialectState = {
   minnan: { entries: minnanDictionary, loaded: minnanDictionaryLoaded, loadPromise: minnanDictionaryLoadPromise },
+  hokkien: { entries: [], loaded: false, loadPromise: null },
   shanghai: { entries: [], loaded: false, loadPromise: null },
+  shanghainese: { entries: [], loaded: false, loadPromise: null },
   sichuan: { entries: [], loaded: false, loadPromise: null },
 };
 const yueAudioAvailabilityCache = new Map();
@@ -805,7 +856,7 @@ const CLIENT_CHAT_TOOLS = [
       properties: {
         dialect: {
           type: "string",
-          enum: ["yue", "minnan", "shanghai", "sichuan"],
+          enum: SUPPORTED_DIALECT_IDS,
           default: "yue",
         },
       },
@@ -820,7 +871,7 @@ const CLIENT_CHAT_TOOLS = [
       properties: {
         dialect: {
           type: "string",
-          enum: ["yue", "minnan", "shanghai", "sichuan"],
+          enum: SUPPORTED_DIALECT_IDS,
           default: "yue",
         },
         category: {
@@ -1095,8 +1146,12 @@ function localTranslate(input, direction) {
   if (direction === "yue_to_zh") return applyDict(input, localYueToZhMap);
   if (direction === "zh_to_minnan") return applyDict(input, localZhToMinnanMap);
   if (direction === "minnan_to_zh") return applyDict(input, localMinnanToZhMap);
+  if (direction === "zh_to_hokkien") return applyDict(input, localZhToMinnanMap);
+  if (direction === "hokkien_to_zh") return applyDict(input, localMinnanToZhMap);
   if (direction === "zh_to_shanghai") return applyDict(input, localZhToShMap);
   if (direction === "shanghai_to_zh") return applyDict(input, localShToZhMap);
+  if (direction === "zh_to_shanghainese") return applyDict(input, localZhToShMap);
+  if (direction === "shanghainese_to_zh") return applyDict(input, localShToZhMap);
   if (direction === "zh_to_sichuan") return applyDict(input, localZhToSichuanMap);
   if (direction === "sichuan_to_zh") return applyDict(input, localSichuanToZhMap);
   return input;
@@ -1108,14 +1163,34 @@ function getTranslatePrompt(direction) {
       "你是专业的粤语翻译助手。请把用户输入的标准中文翻译成地道粤语。\n规则：\n1. 使用粤语特有字词（如：係、嘅、喺、唔、咗、啲、嘢、噉、喇、嚟、佢等）\n2. 使用粤语音译词（如：的士、巴士、朱古力等）\n3. 保持粤语语法结构（如：我哋、呢个、嗰个、点解等）\n4. 如有词典参考信息，请优先参考其中的粤拼和用法\n5. 只输出翻译结果，不要解释",
     yue_to_zh:
       "你是专业的粤语翻译助手。请把用户输入的粤语翻译成标准中文（普通话）。\n规则：\n1. 将粤语特有字词转换为标准中文（如：係→是、嘅→的、喺→在、唔→不、咗→了等）\n2. 将粤语音译词转为标准中文（如：的士→出租车、巴士→公交车等）\n3. 将粤语语法转为标准中文语法（如：我哋→我们、呢个→这个等）\n4. 如有词典参考信息，请优先参考其中的含义\n5. 只输出翻译结果，不要解释",
+    zh_to_taishanese:
+      "你是专业的台山话（Taishanese）翻译助手。请把用户输入的标准中文翻译成自然的台山话。\n规则：\n1. 使用台山话常见口语词和粤西/四邑地区表达，避免混成标准广州粤语\n2. 必要时给出常用汉字写法，并可在括号内补充读音提示或本地罗马化\n3. 如有词典参考信息，请优先参考其中的注音和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
+    taishanese_to_zh:
+      "你是专业的台山话（Taishanese）翻译助手。请把用户输入的台山话翻译成标准中文（普通话）。\n规则：\n1. 识别台山话常见词形、口语表达和读音转写\n2. 将口语表达翻译成自然标准中文\n3. 如有词典参考信息，请优先参考其中的释义\n4. 只输出翻译结果，不要解释",
     zh_to_minnan:
       "你是专业的闽南语翻译助手。请把用户输入的标准中文翻译成自然的闽南语/台语。\n规则：\n1. 使用常见闽南语词形（如：食飯、歹勢、多謝、今仔日、佗位等）\n2. 必要时保留汉字写法，并可在括号内给出台罗注音\n3. 如有词典参考信息，请优先参考其中的台罗、白话字和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
     minnan_to_zh:
       "你是专业的闽南语翻译助手。请把用户输入的闽南语/台语翻译成标准中文（普通话）。\n规则：\n1. 识别闽南语常见汉字词与台罗/白话字注音\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
+    zh_to_hokkien:
+      "你是专业的 Hokkien（闽南话）翻译助手。请把用户输入的标准中文翻译成自然的闽南话。\n规则：\n1. 使用常见闽南话词形（如：食飯、歹勢、多謝、今仔日、佗位等）\n2. 必要时保留汉字写法，并可在括号内给出台罗或白话字注音\n3. 如有词典参考信息，请优先参考其中的台罗、白话字和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
+    hokkien_to_zh:
+      "你是专业的 Hokkien（闽南话）翻译助手。请把用户输入的闽南话翻译成标准中文（普通话）。\n规则：\n1. 识别闽南话常见汉字词与台罗/白话字注音\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
     zh_to_shanghai:
       "你是专业的上海话翻译助手。请把用户输入的标准中文翻译成自然的上海话。\n规则：\n1. 使用常见上海话词形（如：侬好、阿拉、今朝、哪能、啥物事等）\n2. 必要时在括号内给出读音提示或 IPA\n3. 如有词典参考信息，请优先参考其中的罗马化、IPA 和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
     shanghai_to_zh:
       "你是专业的上海话翻译助手。请把用户输入的上海话翻译成标准中文（普通话）。\n规则：\n1. 识别上海话常见词形和口语表达\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
+    zh_to_shanghainese:
+      "你是专业的 Shanghainese（上海话）翻译助手。请把用户输入的标准中文翻译成自然的上海话。\n规则：\n1. 使用常见上海话词形（如：侬好、阿拉、今朝、哪能、啥物事等）\n2. 必要时在括号内给出读音提示、罗马化或 IPA\n3. 如有词典参考信息，请优先参考其中的罗马化、IPA 和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
+    shanghainese_to_zh:
+      "你是专业的 Shanghainese（上海话）翻译助手。请把用户输入的上海话翻译成标准中文（普通话）。\n规则：\n1. 识别上海话常见词形和口语表达\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
+    zh_to_teochew:
+      "你是专业的潮州话（Teochew）翻译助手。请把用户输入的标准中文翻译成自然的潮州话。\n规则：\n1. 使用潮汕地区常见潮州话词形和口语表达，避免混成闽南话或粤语\n2. 必要时保留汉字写法，并可在括号内给出潮州话拼音、白话字或读音提示\n3. 如有词典参考信息，请优先参考其中的注音和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
+    teochew_to_zh:
+      "你是专业的潮州话（Teochew）翻译助手。请把用户输入的潮州话翻译成标准中文（普通话）。\n规则：\n1. 识别潮州话常见汉字词、口语表达和注音转写\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
+    zh_to_wenzhounese:
+      "你是专业的温州话（Wenzhounese）翻译助手。请把用户输入的标准中文翻译成自然的温州话。\n规则：\n1. 使用温州话常见吴语词形和口语表达，避免混成普通上海话\n2. 必要时保留汉字写法，并可在括号内给出读音提示、罗马化或 IPA\n3. 如有词典参考信息，请优先参考其中的注音和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
+    wenzhounese_to_zh:
+      "你是专业的温州话（Wenzhounese）翻译助手。请把用户输入的温州话翻译成标准中文（普通话）。\n规则：\n1. 识别温州话常见词形、口语表达和读音转写\n2. 如有词典参考信息，请优先参考其中的释义\n3. 将口语表达翻译成自然标准中文\n4. 只输出翻译结果，不要解释",
     zh_to_sichuan:
       "你是专业的四川话翻译助手。请把用户输入的标准中文翻译成自然的四川话。\n规则：\n1. 使用常见四川话表达（如：啷个、啥子、要得、莫得、巴适、安逸等）\n2. 必要时给出读音提示\n3. 如有词典参考信息，请优先参考其中的读音和释义\n4. 保持语义准确、适合日常学习场景\n5. 只输出翻译结果，不要解释",
     sichuan_to_zh:
@@ -1131,10 +1206,20 @@ function getTranslateDirectionName(direction) {
   const directionMap = {
     zh_to_yue: "中文 → 粤语",
     yue_to_zh: "粤语 → 中文",
+    zh_to_taishanese: "中文 → Taishanese (台山话)",
+    taishanese_to_zh: "Taishanese (台山话) → 中文",
     zh_to_minnan: "中文 → 闽南语",
     minnan_to_zh: "闽南语 → 中文",
+    zh_to_hokkien: "中文 → Hokkien (闽南话)",
+    hokkien_to_zh: "Hokkien (闽南话) → 中文",
     zh_to_shanghai: "中文 → 上海话",
     shanghai_to_zh: "上海话 → 中文",
+    zh_to_shanghainese: "中文 → Shanghainese (上海话)",
+    shanghainese_to_zh: "Shanghainese (上海话) → 中文",
+    zh_to_teochew: "中文 → Teochew (潮州话)",
+    teochew_to_zh: "Teochew (潮州话) → 中文",
+    zh_to_wenzhounese: "中文 → Wenzhounese (温州话)",
+    wenzhounese_to_zh: "Wenzhounese (温州话) → 中文",
     zh_to_sichuan: "中文 → 四川话",
     sichuan_to_zh: "四川话 → 中文",
   };
@@ -2409,6 +2494,14 @@ async function searchYueWord() {
     return;
   }
 
+  if (dialect !== "yue") {
+    const meta = getDialectMeta(dialect);
+    yueDictResultEl.innerHTML = "";
+    noYueDictResultEl.style.display = "block";
+    noYueDictResultEl.textContent = `${meta.label}暂无本地词典，请在翻译或聊天中使用 AI 学习。`;
+    return;
+  }
+
   try {
     await loadYueDictionary();
   } catch {
@@ -2620,7 +2713,7 @@ sendChatBtn.addEventListener("click", async () => {
   try {
     if (isRegionalDialect(requestedDialect)) {
       await loadRegionalDialectDictionary(requestedDialect);
-    } else {
+    } else if (requestedDialect === "yue") {
       await loadYueDictionary();
     }
   } catch {
@@ -2628,10 +2721,14 @@ sendChatBtn.addEventListener("click", async () => {
   }
   const dictContext = isRegionalDialect(requestedDialect)
     ? extractRegionalDialectContext(requestedDialect, input)
-    : extractYueDictContext(input);
+    : requestedDialect === "yue"
+      ? extractYueDictContext(input)
+      : "";
   const dictLabel = isRegionalDialect(requestedDialect)
     ? `${REGIONAL_DIALECTS[requestedDialect].label}词典参考信息`
-    : "粤语词典参考信息";
+    : requestedDialect === "yue"
+      ? "粤语词典参考信息"
+      : "";
   const enhancedInput = dictContext ? `${input}\n\n[${dictLabel}]\n${dictContext}` : input;
 
   conversation.push({ role: "user", content: enhancedInput });
@@ -2708,11 +2805,16 @@ sendChatBtn.addEventListener("click", async () => {
 });
 
 function isMinnanQuery(text) {
-  return /闽南|閩南|台语|台語|臺語|臺灣話|台湾话|hokkien|minnan|tailo|白话字|白話字/i.test(text || "");
+  return /闽南|閩南|闽南话|閩南話|台语|台語|臺語|臺灣話|台湾话|hokkien|minnan|tailo|白话字|白話字/i.test(text || "");
 }
 
 function detectDialectFromText(text) {
   const raw = text || "";
+  if (/台山话|台山話|台山|四邑话|四邑話|taishan|taishanese|toisan|toishanese|hoisan/i.test(raw)) return "taishanese";
+  if (/潮州话|潮州話|潮汕话|潮汕話|teochew|chiuchow|chaozhou/i.test(raw)) return "teochew";
+  if (/温州话|溫州話|wenzhou|wenzhounese/i.test(raw)) return "wenzhounese";
+  if (/hokkien|闽南话|閩南話/i.test(raw)) return "hokkien";
+  if (/shanghainese/i.test(raw)) return "shanghainese";
   if (/上海话|上海話|沪语|滬語|吴语|吳語|shanghai|shanghainese/i.test(raw)) return "shanghai";
   if (/四川话|四川話|川话|川話|成都话|成都話|sichuan|sichuanese|chengdu/i.test(raw)) return "sichuan";
   if (isMinnanQuery(raw)) return "minnan";
@@ -2809,9 +2911,10 @@ function extractMinnanTranslateRAG(input, direction) {
 }
 
 function getDialectFromDirection(direction) {
-  const match = String(direction || "").match(/(?:zh_to_|^)(yue|minnan|shanghai|sichuan)(?:_to_zh)?/);
-  if (!match) return "yue";
-  return match[1];
+  const dialect = String(direction || "")
+    .replace(/^zh_to_/, "")
+    .replace(/_to_zh$/, "");
+  return DIALECTS[dialect] ? dialect : "yue";
 }
 
 function getOutputDialectFromDirection(direction) {
@@ -2881,7 +2984,7 @@ translateBtn.addEventListener("click", async () => {
   try {
     if (isRegionalDirection) {
       await loadRegionalDialectDictionary(targetDialect);
-    } else {
+    } else if (targetDialect === "yue") {
       await loadYueDictionary();
     }
   } catch {
@@ -2890,7 +2993,9 @@ translateBtn.addEventListener("click", async () => {
   const systemPrompt = getTranslatePrompt(direction);
   const ragContext = isRegionalDirection
     ? extractRegionalTranslateRAG(input, direction)
-    : extractTranslateRAG(input, direction);
+    : targetDialect === "yue"
+      ? extractTranslateRAG(input, direction)
+      : "";
   const userContent = ragContext ? `${input}\n\n[${ragContext}]` : input;
 
   try {
@@ -3203,6 +3308,12 @@ const dialectLearningData = {
   },
 };
 
+dialectLearningData.hokkien = dialectLearningData.minnan;
+dialectLearningData.shanghainese = dialectLearningData.shanghai;
+dialectLearningData.taishanese = dialectLearningData.yue;
+dialectLearningData.teochew = dialectLearningData.minnan;
+dialectLearningData.wenzhounese = dialectLearningData.shanghai;
+
 const LEARNING_PAGE_LABELS = {
   quiz: "学习测验",
   phrases: "常用短语",
@@ -3217,14 +3328,14 @@ async function executeChatTool(name, args = {}) {
     return callMcpTool(name, args);
   }
   if (name === "get_daily_quote") {
-    const dialect = ["yue", "minnan", "shanghai", "sichuan"].includes(args.dialect) ? args.dialect : "yue";
+    const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
     const quotes = dialectLearningData[dialect]?.quotes || [];
     if (!quotes.length) return { error: "暂无该方言每日一句数据" };
     const quote = quotes[new Date().getDate() % quotes.length];
     return { dialect, label: getDialectMeta(dialect).label, ...quote };
   }
   if (name === "get_common_phrases") {
-    const dialect = ["yue", "minnan", "shanghai", "sichuan"].includes(args.dialect) ? args.dialect : "yue";
+    const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
     const category = args.category || "greeting";
     const limit = Math.min(Math.max(Number(args.limit) || 4, 1), 8);
     const phrases = dialectLearningData[dialect]?.phrases?.[category] || [];
@@ -3349,8 +3460,8 @@ async function runIntentToolFallback(userInput) {
 
   // 兜底：如果用户明确提到方言/学习/粤语/闽南等，给他每日一句
   if (
-    /(粤语|闽南|上海话|四川话|方言|学习|学.*话|怎么.*(说|讲))/i.test(raw) ||
-    /(cantonese|hokkien|shanghainese|sichuanese)/i.test(lower)
+    /(粤语|台山话|台山話|闽南|閩南|上海话|上海話|潮州话|潮州話|温州话|溫州話|四川话|四川話|方言|学习|学.*话|怎么.*(说|讲))/i.test(raw) ||
+    /(cantonese|taishanese|toisan|hokkien|shanghainese|teochew|wenzhounese|sichuanese)/i.test(lower)
   ) {
     const args = { dialect };
     const result = await executeChatTool("get_daily_quote", args);
@@ -3915,7 +4026,7 @@ async function generateAIQuiz() {
   try {
     if (dialect === "yue") {
       await loadYueDictionary();
-    } else {
+    } else if (isRegionalDialect(dialect)) {
       await loadRegionalDialectDictionary(dialect);
     }
   } catch (err) {
@@ -3938,12 +4049,12 @@ async function generateAIQuiz() {
     hard: `困难：题目涉及${meta.label}语法、俚语或读音辨析等，4个选项，1个正确答案`,
   };
 
-  const prompt = `你是${meta.label}学习测验出题专家。请根据提供的${meta.label}词典信息，生成5道选择题。
+  const prompt = `你是${meta.label}学习测验出题专家。请根据提供的${meta.label}词典信息或通用语言知识，生成5道选择题。
 
 难度要求：${difficultyGuide[difficulty]}
 
 词典参考信息：
-${dictContext}
+${dictContext || "暂无本地词典参考，请使用准确的通用语言知识出题。"}
 
 请严格按照以下JSON格式输出，不要输出任何其他内容：
 [
@@ -5226,6 +5337,14 @@ searchYueWord = async function() {
       renderRegionalDialectResult(dialect, []);
       alert(`未找到词汇 "${word}" 的相关信息`);
     }
+    return;
+  }
+
+  if (dialect !== "yue") {
+    const meta = getDialectMeta(dialect);
+    yueDictResultEl.innerHTML = "";
+    noYueDictResultEl.style.display = "block";
+    noYueDictResultEl.textContent = `${meta.label}暂无本地词典，请在翻译或聊天中使用 AI 学习。`;
     return;
   }
 

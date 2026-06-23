@@ -16,6 +16,17 @@ const SHANGHAI_DICT_FILE = path.join(__dirname, "..", "main", "read", "shanghai_
 const SICHUAN_DICT_FILE = path.join(__dirname, "..", "main", "read", "sichuan_dictionary.csv");
 const YUE_DICT_FILE = path.join(__dirname, "..", "main", "read", "yyzd.csv");
 const MEMORY_SALT = process.env.MCP_MEMORY_SALT || "dls-ai-memory-v1";
+const SUPPORTED_DIALECT_IDS = Object.freeze([
+  "yue",
+  "taishanese",
+  "minnan",
+  "hokkien",
+  "shanghai",
+  "shanghainese",
+  "teochew",
+  "wenzhounese",
+  "sichuan",
+]);
 
 let dictionariesCache = null;
 
@@ -42,8 +53,8 @@ const tools = [
       properties: {
         dialect: {
           type: "string",
-          enum: ["yue", "minnan", "shanghai", "sichuan"],
-          description: "方言代码：yue=粤语，minnan=闽南语/台语，shanghai=上海话，sichuan=四川话。",
+          enum: SUPPORTED_DIALECT_IDS,
+          description: "方言代码：yue=粤语，taishanese=台山话，minnan/hokkien=闽南话，shanghai/shanghainese=上海话，teochew=潮州话，wenzhounese=温州话，sichuan=四川话。",
         },
         query: {
           type: "string",
@@ -69,7 +80,7 @@ const tools = [
       properties: {
         dialect: {
           type: "string",
-          enum: ["yue", "minnan", "shanghai", "sichuan"],
+          enum: SUPPORTED_DIALECT_IDS,
           default: "yue",
         },
         difficulty: {
@@ -200,7 +211,12 @@ function loadDictionaries() {
     dictionariesCache = {
       yue: loadYueDictionary(),
       minnan: loadMinnanDictionary(),
+      hokkien: loadMinnanDictionary(),
       shanghai: loadRegionalDictionary(SHANGHAI_DICT_FILE, "shanghai"),
+      shanghainese: loadRegionalDictionary(SHANGHAI_DICT_FILE, "shanghainese"),
+      taishanese: [],
+      teochew: [],
+      wenzhounese: [],
       sichuan: loadRegionalDictionary(SICHUAN_DICT_FILE, "sichuan"),
     };
   }
@@ -212,7 +228,7 @@ function normalizeText(text) {
 }
 
 function searchDialectDictionary(args = {}) {
-  const dialect = ["yue", "minnan", "shanghai", "sichuan"].includes(args.dialect)
+  const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect)
     ? args.dialect
     : "yue";
   const query = normalizeText(args.query);
@@ -238,7 +254,7 @@ function searchDialectDictionary(args = {}) {
 }
 
 function generatePracticeQuiz(args = {}) {
-  const dialect = ["yue", "minnan", "shanghai", "sichuan"].includes(args.dialect)
+  const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect)
     ? args.dialect
     : "yue";
   const count = Math.min(Math.max(Number(args.count) || 5, 1), 10);
