@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const { judgeWithAI, AI_ENABLED, GUARDRAIL_MODEL } = require("./guardrail-judge");
+const { judgeWithAI, rewriteWithAI, AI_ENABLED, GUARDRAIL_MODEL } = require("./guardrail-judge");
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const FEEDBACK_DIR = path.join(DATA_DIR, "feedback");
@@ -195,6 +195,22 @@ async function checkContent(text, stage, context = {}) {
   try {
     const aiJudge = await runAiJudge(raw, stage, context);
     if (aiJudge.allowed === false) {
+      // AI 决策：尝试改写而非直接拦截（实现“修改”能力）
+      if (stage === "output" && AI_ENABLED) {
+        try {
+          const rewrite = await rewriteWithAI(raw, stage, context);
+          if (rewrite.rewritten) {
+            result.allowed = true;
+            result.sanitizedText = rewrite.rewritten;
+            result.message = "AI 已优化回复内容，移除潜在风险部分。";
+            result.judge = "ai_rewrite";
+            result.rewritten = true;
+            return result;
+          }
+        } catch (rewriteErr) {
+          console.warn("[GuardrailRewrite] failed:", rewriteErr.message);
+        }
+      }
       result.allowed = false;
       result.message =
         aiJudge.message ||

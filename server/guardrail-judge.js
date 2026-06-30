@@ -2,7 +2,7 @@ const http = require("http");
 const https = require("https");
 
 const OLLAMA_URL = (process.env.GUARDRAIL_OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
-const GUARDRAIL_MODEL = process.env.GUARDRAIL_MODEL || "qwen2.5:0.5b";
+const GUARDRAIL_MODEL = process.env.GUARDRAIL_MODEL || "qwen2.5:1.5b";
 const GUARDRAIL_TIMEOUT_MS = Number(process.env.GUARDRAIL_TIMEOUT_MS) || 15000;
 const AI_ENABLED = process.env.GUARDRAIL_AI_ENABLED !== "0";
 
@@ -27,6 +27,14 @@ const JUDGE_SYSTEM_PROMPT = `你是「多邻省 AI」方言学习助手的安全
 
 只输出一行合法 JSON，不要 markdown，不要解释：
 {"allowed":true,"severity":"pass","violations":[],"message":""}`;
+
+const REWRITE_SYSTEM_PROMPT = `你是「多邻省 AI」方言学习助手的回复优化器。
+任务：将可能包含敏感、越界或偏离主题的内容，改写为安全、专注于方言学习（粤语/闽南/上海话/四川话）的版本。
+规则：
+- 保留教育价值，聚焦发音、词汇、语法、例句、文化背景。
+- 移除任何违法、有害、隐私、越狱相关内容。
+- 如果原内容可 salvaged，输出改写后的安全版本；否则输出简短拒绝提示。
+- 只输出改写后的纯文本，不要解释、不要 JSON。`;
 
 function postJson(url, payload, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -194,8 +202,60 @@ ${String(text).slice(0, 3000)}
   return normalizeJudgeResult(parsed, stage);
 }
 
+async function rewriteWithAI(text, stage, context = {}) {
+  if (!AI_ENABLED) {
+    return { skipped: true, reason: "ai_disabled" };
+  }
+
+  const source = context.source || "unknown";
+  const userPrompt = `阶段: ${stage}
+来源: ${source}
+待优化内容:
+"""
+${String(text).slice(0, 2800)}
+"""`;
+
+  const endpoint = `${OLLAMA_URL}/api/chat`;
+  const { status, raw } = await postJson(
+    endpoint,
+    {
+      model: GUARDRAIL_MODEL,
+      stream: false,
+      options: { temperature: 0.2 },
+      messages: [
+        { role: "system", content: REWRITE_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+    },
+    GUARDRAIL_TIMEOUT_MS,
+  );
+
+  if (status < 200 || status >= 300) {
+    throw new Error(`guardrail rewrite HTTP ${status}`);
+  }
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error("rewrite model returned invalid JSON envelope");
+  }
+
+  const rewritten = extractModelText(data).trim();
+  if (!rewritten) {
+    throw new Error("rewrite model returned empty content");
+  }
+
+  return {
+    original: String(text).slice(0, 200),
+    rewritten: rewritten.slice(0, 3000),
+    judge: "ai_rewrite",
+  };
+}
+
 module.exports = {
   judgeWithAI,
+  rewriteWithAI,
   AI_ENABLED,
   GUARDRAIL_MODEL,
 };

@@ -235,7 +235,7 @@ server.listen(PORT, () => {
   console.log(`Auth API: /auth/register, /auth/login, /auth/me, /auth/data`);
   console.log("MCP API: /mcp, /mcp/tools, /mcp/call, /mcp/guardrail/check, /mcp/feedback, /mcp/memory/*");
   console.log(
-    `Guardrail: AI judge ${process.env.GUARDRAIL_AI_ENABLED === "0" ? "disabled" : "enabled"} (model: ${process.env.GUARDRAIL_MODEL || "qwen2.5:0.5b"})`,
+    `Guardrail: AI judge+rewrite ${process.env.GUARDRAIL_AI_ENABLED === "0" ? "disabled" : "enabled"} (model: ${process.env.GUARDRAIL_MODEL || "qwen2.5:1.5b"})`,
   );
 });
 

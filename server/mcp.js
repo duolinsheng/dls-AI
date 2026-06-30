@@ -98,6 +98,80 @@ const tools = [
       additionalProperties: false,
     },
   },
+  {
+    name: "get_tone_guide",
+    description: "获取指定方言的声调系统指南（调值、例字、发音提示）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dialect: { type: "string", enum: SUPPORTED_DIALECT_IDS, default: "yue" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_word_examples",
+    description: "为指定方言词汇提供多个实用例句（含方言、中文、注音）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dialect: { type: "string", enum: SUPPORTED_DIALECT_IDS, default: "yue" },
+        term: { type: "string", minLength: 1 },
+        limit: { type: "integer", minimum: 1, maximum: 6, default: 3 },
+      },
+      required: ["term"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_dialect_comparison",
+    description: "对比同一个中文概念在不同方言中的说法。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        word: { type: "string", minLength: 1 },
+      },
+      required: ["word"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_random_challenge",
+    description: "生成随机的方言学习挑战（声调/词汇/短语）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dialect: { type: "string", enum: SUPPORTED_DIALECT_IDS, default: "yue" },
+        type: { type: "string", enum: ["tone", "quiz", "phrase"], default: "quiz" },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "retrieve_memory",
+    description: "检索当前用户的记忆片段，用于个性化对话或回顾学习内容。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "记忆检索关键词" },
+        limit: { type: "integer", minimum: 1, maximum: 12, default: 6 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "write_memory",
+    description: "写入新的记忆片段（学习偏好、常用表达、个人笔记等）。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        facts: { type: "array", items: { type: "string" } },
+        fact: { type: "string" },
+        source: { type: "string", default: "chat" },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 function ensureMemoryDir() {
@@ -373,13 +447,28 @@ async function validateToolArgs(name, args = {}) {
   return null;
 }
 
-async function callTool(name, args) {
+async function callTool(name, args, req = null) {
   const validationError = await validateToolArgs(name, args);
   if (validationError) return validationError;
 
   if (name === "get_user_progress") return summarizeProgress(args);
   if (name === "search_dialect_dictionary") return searchDialectDictionary(args);
   if (name === "generate_practice_quiz") return generatePracticeQuiz(args);
+
+  if (name === "get_tone_guide") return getToneGuide(args);
+  if (name === "get_word_examples") return getWordExamples(args);
+  if (name === "get_dialect_comparison") return getDialectComparison(args);
+  if (name === "get_random_challenge") return getRandomChallenge(args);
+
+  if (name === "retrieve_memory") {
+    const body = { query: args.query, limit: args.limit };
+    return retrieveMemory(req || { headers: {}, socket: {} }, body);
+  }
+  if (name === "write_memory") {
+    const body = { facts: args.facts, fact: args.fact, source: args.source };
+    return writeMemory(req || { headers: {}, socket: {} }, body);
+  }
+
   return { error: `Unknown tool: ${name}` };
 }
 
@@ -426,6 +515,21 @@ async function handleMcpRequest(req, res, requestPath) {
       return sendJson(res, 200, checkResult);
     }
 
+    if (requestPath === "/mcp/guardrail/rewrite" && req.method === "POST") {
+      const body = await readRequestBody(req);
+      const stage = body.stage === "output" ? "output" : "input";
+      try {
+        const rewriteResult = await require("./guardrail-judge").rewriteWithAI(
+          body.text,
+          stage,
+          body.context || {},
+        );
+        return sendJson(res, 200, rewriteResult);
+      } catch (err) {
+        return sendJson(res, 200, { error: err.message, skipped: true });
+      }
+    }
+
     if (requestPath === "/mcp/feedback" && req.method === "POST") {
       const body = await readRequestBody(req);
       return sendJson(res, 200, submitFeedback(req, body));
@@ -438,7 +542,7 @@ async function handleMcpRequest(req, res, requestPath) {
     if (requestPath === "/mcp/call" && req.method === "POST") {
       const body = await readRequestBody(req);
       return sendJson(res, 200, {
-        result: await callTool(body.tool || body.name, body.arguments || body.args || {}),
+        result: await callTool(body.tool || body.name, body.arguments || body.args || {}, req),
       });
     }
 
@@ -504,6 +608,85 @@ async function handleMcpRequest(req, res, requestPath) {
     console.error("[McpError]", err);
     return sendJson(res, 500, { error: "MCP server error" });
   }
+}
+
+// ==================== 新工具实现（服务端） ====================
+
+const TONE_GUIDE = {
+  yue: {
+    title: "粤语六声调",
+    description: "粤语有6个声调：阴平(55)、阴上(35)、阴去(33)、阳平(21)、阳上(13)、阳去(22)。",
+    examples: [
+      { word: "诗", pinyin: "si1", tone: "阴平", meaning: "诗" },
+      { word: "史", pinyin: "si2", tone: "阴上", meaning: "历史" },
+      { word: "试", pinyin: "si3", tone: "阴去", meaning: "尝试" },
+      { word: "时", pinyin: "si4", tone: "阳平", meaning: "时间" },
+      { word: "市", pinyin: "si5", tone: "阳上", meaning: "城市" },
+      { word: "是", pinyin: "si6", tone: "阳去", meaning: "是" },
+    ],
+  },
+  minnan: {
+    title: "闽南语声调",
+    description: "闽南语常用5-7个声调（含入声）。",
+    examples: [
+      { word: "你", pinyin: "lí", tone: "阳平", meaning: "你" },
+      { word: "好", pinyin: "hó", tone: "上声", meaning: "好" },
+    ],
+  },
+  shanghai: { title: "上海话声调", description: "上海话主要有阴平、阳平、阴去、阳去。", examples: [] },
+  sichuan: { title: "四川话声调", description: "四川话一般有4个声调。", examples: [] },
+};
+
+function getToneGuide(args = {}) {
+  const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
+  return TONE_GUIDE[dialect] || TONE_GUIDE.yue;
+}
+
+function getWordExamples(args = {}) {
+  const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
+  const term = String(args.term || "").trim();
+  const limit = Math.min(Math.max(Number(args.limit) || 3, 1), 6);
+  // 简单示例库
+  const bank = {
+    yue: {
+      你好: [
+        { yue: "你好！", zh: "你好！", pinyin: "nei5 hou2" },
+        { yue: "你好啊，最近点呀？", zh: "你好啊，最近怎么样？", pinyin: "nei5 hou2 aa3" },
+      ],
+    },
+  };
+  const list = (bank[dialect] && bank[dialect][term]) || [];
+  return list.length
+    ? list.slice(0, limit)
+    : Array.from({ length: limit }, () => ({ yue: term, zh: term, pinyin: "", note: "示例" }));
+}
+
+const COMPARISON = {
+  你好: { yue: "你好", minnan: "你好 / lí ho", shanghai: "侬好", sichuan: "你好" },
+  谢谢: { yue: "多谢", minnan: "多谢", shanghai: "谢谢侬", sichuan: "谢谢" },
+  吃饭: { yue: "食饭", minnan: "食饭", shanghai: "吃饭", sichuan: "吃饭" },
+  再见: { yue: "再见", minnan: "再会", shanghai: "再会", sichuan: "再见" },
+};
+
+function getDialectComparison(args = {}) {
+  const word = String(args.word || "").trim();
+  const entry = COMPARISON[word] || {};
+  return SUPPORTED_DIALECT_IDS.map((d) => ({
+    dialect: d,
+    text: entry[d] || "（暂无）",
+  }));
+}
+
+function getRandomChallenge(args = {}) {
+  const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
+  const type = ["tone", "quiz", "phrase"].includes(args.type) ? args.type : "quiz";
+  if (type === "tone") {
+    return { title: "声调挑战", question: "请读出「诗」的声调", answer: "阴平 (55)" };
+  }
+  if (type === "phrase") {
+    return { title: "短语挑战", question: "请跟读：你好", answer: "你好" };
+  }
+  return { title: "选择题", question: "「你好」用粤语怎么说？", options: ["你好", "拜拜"], answer: "你好" };
 }
 
 module.exports = {

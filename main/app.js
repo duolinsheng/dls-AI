@@ -128,7 +128,7 @@ function initNavigation() {
 }
 
 const CHAT_SYSTEM_PROMPT =
-  "你是一个耐心的方言学习助手，精通粤语、台山话、上海话、闽南话、潮州话、温州话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语/台山话，请提供粤拼、台山话常用读音提示或本地罗马化，并给出标准中文解释\n2. 若涉及闽南话/Hokkien，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话/温州话，请提供常用吴语罗马化/IPA 或读音提示和标准中文解释\n4. 若涉及潮州话，请提供潮州话拼音/白话字或读音提示和标准中文解释\n5. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n6. 解释方言字词时，给出常见写法、注音和生活场景例句\n7. 如有词典参考信息，请优先参考其中的注音和含义\n8. 用户指定方言时，不要混用另一种方言\n9. 学习类问题（练习、每日一句、短语、进度、查词、打开页面）由系统自动处理工具调用，你只需给出友好回答或补充解释即可\n10. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
+  "你是一个耐心的方言学习助手，精通粤语、台山话、上海话、闽南话、潮州话、温州话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语/台山话，请提供粤拼、台山话常用读音提示或本地罗马化，并给出标准中文解释\n2. 若涉及闽南话/Hokkien，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话/温州话，请提供常用吴语罗马化/IPA 或读音提示和标准中文解释\n4. 若涉及潮州话，请提供潮州话拼音/白话字或读音提示和标准中文解释\n5. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n6. 解释方言字词时，给出常见写法、注音和生活场景例句\n7. 如有词典参考信息，请优先参考其中的注音和含义\n8. 用户指定方言时，不要混用另一种方言\n9. 学习类问题由系统自动处理工具调用（包括：出题、每日一句、短语、声调指南、例句、方言对比、随机挑战、进度、打开页面），你只需给出友好回答或补充解释即可\n10. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
 
 const conversation = [
   {
@@ -847,81 +847,23 @@ async function submitChatFeedback(messageId, rating, userInput, assistantReply, 
   }
 }
 
-const CLIENT_CHAT_TOOLS = [
-  {
-    name: "get_daily_quote",
-    description: "获取指定方言的「每日一句」学习例句，含方言文本、中文释义和注音。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        dialect: {
-          type: "string",
-          enum: SUPPORTED_DIALECT_IDS,
-          default: "yue",
-        },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "get_common_phrases",
-    description: "获取指定方言的常用短语列表，可按场景分类。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        dialect: {
-          type: "string",
-          enum: SUPPORTED_DIALECT_IDS,
-          default: "yue",
-        },
-        category: {
-          type: "string",
-          enum: ["greeting", "daily", "food", "shopping", "emotion"],
-          default: "greeting",
-        },
-        limit: { type: "integer", minimum: 1, maximum: 8, default: 4 },
-      },
-      additionalProperties: false,
-    },
-  },
-  {
-    name: "navigate_to_learning",
-    description: "在应用中打开指定学习功能页面，如测验、短语、每日一句、词典、声调练习、生词本。",
-    inputSchema: {
-      type: "object",
-      properties: {
-        page: {
-          type: "string",
-          enum: ["quiz", "phrases", "daily", "dictionary", "tones", "wordbook"],
-        },
-      },
-      required: ["page"],
-      additionalProperties: false,
-    },
-  },
-];
+// 所有工具调用均通过服务端 MCP 接口（/mcp/tools + /mcp/call），无客户端离线实现
 
 async function fetchMcpTools() {
   if (mcpToolsCache) return mcpToolsCache;
   try {
     const res = await fetch("/mcp/tools");
-    if (!res.ok) return [...CLIENT_CHAT_TOOLS];
+    if (!res.ok) return [];
     const data = await res.json();
     mcpToolsCache = Array.isArray(data.tools) ? data.tools : [];
     return mcpToolsCache;
   } catch {
-    return [...CLIENT_CHAT_TOOLS];
+    return [];
   }
 }
 
 async function fetchChatTools() {
-  const serverTools = await fetchMcpTools();
-  const names = new Set(serverTools.map((tool) => tool.name));
-  const merged = [...serverTools];
-  for (const tool of CLIENT_CHAT_TOOLS) {
-    if (!names.has(tool.name)) merged.push(tool);
-  }
-  return merged;
+  return fetchMcpTools();
 }
 
 function getUserProgressPayload() {
@@ -3323,35 +3265,8 @@ const LEARNING_PAGE_LABELS = {
   wordbook: "生词本",
 };
 
+// 所有工具调用统一走服务端 MCP 接口
 async function executeChatTool(name, args = {}) {
-  if (name === "get_user_progress") {
-    return callMcpTool(name, args);
-  }
-  if (name === "get_daily_quote") {
-    const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
-    const quotes = dialectLearningData[dialect]?.quotes || [];
-    if (!quotes.length) return { error: "暂无该方言每日一句数据" };
-    const quote = quotes[new Date().getDate() % quotes.length];
-    return { dialect, label: getDialectMeta(dialect).label, ...quote };
-  }
-  if (name === "get_common_phrases") {
-    const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
-    const category = args.category || "greeting";
-    const limit = Math.min(Math.max(Number(args.limit) || 4, 1), 8);
-    const phrases = dialectLearningData[dialect]?.phrases?.[category] || [];
-    return {
-      dialect,
-      category,
-      label: getDialectMeta(dialect).label,
-      phrases: phrases.slice(0, limit),
-    };
-  }
-  if (name === "navigate_to_learning") {
-    const page = args.page || "quiz";
-    if (!LEARNING_PAGE_LABELS[page]) return { error: "未知页面" };
-    navigateTo(page);
-    return { ok: true, page, label: LEARNING_PAGE_LABELS[page] };
-  }
   return callMcpTool(name, args);
 }
 
@@ -3668,6 +3583,132 @@ function createChatNavWidget(result) {
     <p>你可以在对应页面继续学习。</p>
   `;
   return wrap;
+}
+
+// ==================== 新增工具辅助函数 ====================
+
+const TONE_GUIDE_DATA = {
+  yue: {
+    title: "粤语六声调",
+    description: "粤语有 6 个声调：阴平(55)、阴上(35)、阴去(33)、阳平(21)、阳上(13)、阳去(22)。",
+    examples: [
+      { word: "诗", pinyin: "si1", tone: "阴平 (高平调)", meaning: "诗" },
+      { word: "史", pinyin: "si2", tone: "阴上 (高升调)", meaning: "历史" },
+      { word: "试", pinyin: "si3", tone: "阴去 (中平调)", meaning: "尝试" },
+      { word: "时", pinyin: "si4", tone: "阳平 (低降调)", meaning: "时间" },
+      { word: "市", pinyin: "si5", tone: "阳上 (低升调)", meaning: "城市" },
+      { word: "是", pinyin: "si6", tone: "阳去 (低平调)", meaning: "是" },
+    ],
+  },
+  minnan: {
+    title: "闽南语声调",
+    description: "闽南语有 7 个声调（含入声），常用 5 个主要调值：1、2、3、4、8。",
+    examples: [
+      { word: "你", pinyin: "lí", tone: "阳平", meaning: "你" },
+      { word: "好", pinyin: "hó", tone: "上声", meaning: "好" },
+      { word: "食", pinyin: "tsia̍h", tone: "阳入", meaning: "吃" },
+    ],
+  },
+  shanghai: {
+    title: "上海话声调",
+    description: "上海话声调相对简单，主要有阴平、阳平、阴去、阳去四个调类。",
+    examples: [
+      { word: "侬", pinyin: "nong", tone: "阴平", meaning: "你" },
+      { word: "好", pinyin: "hao", tone: "上声", meaning: "好" },
+    ],
+  },
+  sichuan: {
+    title: "四川话声调",
+    description: "四川话一般有 4 个声调：阴平、阳平、上声、去声。",
+    examples: [
+      { word: "你", pinyin: "ni3", tone: "上声", meaning: "你" },
+      { word: "好", pinyin: "hao3", tone: "上声", meaning: "好" },
+    ],
+  },
+};
+
+function getToneGuide(dialect) {
+  return TONE_GUIDE_DATA[dialect] || TONE_GUIDE_DATA.yue;
+}
+
+const WORD_EXAMPLE_BANK = {
+  yue: {
+    你好: [
+      { yue: "你好！", zh: "你好！", pinyin: "nei5 hou2" },
+      { yue: "你好啊，最近点呀？", zh: "你好啊，最近怎么样？", pinyin: "nei5 hou2 aa3, zeoi3 gan6 dim2 aa3" },
+    ],
+    多谢: [
+      { yue: "多谢你！", zh: "谢谢你！", pinyin: "do1 ze6 nei5" },
+      { yue: "多谢晒！", zh: "非常感谢！", pinyin: "do1 ze6 saai3" },
+    ],
+  },
+  minnan: {
+    你好: [
+      { yue: "你好！", zh: "你好！", pinyin: "li2 ho2" },
+      { yue: "你好，食飽未？", zh: "你好，吃饱了吗？", pinyin: "li2 ho2, tsiah8 pa2 bue7" },
+    ],
+  },
+};
+
+function generateWordExamples(dialect, term, limit) {
+  const bank = WORD_EXAMPLE_BANK[dialect] || WORD_EXAMPLE_BANK.yue;
+  const list = bank[term] || [];
+  if (list.length) return list.slice(0, limit);
+
+  // 没有预设例句时，生成简单示例
+  return Array.from({ length: Math.min(limit, 2) }, (_, i) => ({
+    yue: `${term}。`,
+    zh: `${term}。`,
+    pinyin: "",
+    note: "（示例由系统生成，可自行补充更地道例句）",
+  }));
+}
+
+const COMPARISON_MAP = {
+  你好: { yue: "你好", minnan: "你好 / lí ho", shanghai: "侬好", sichuan: "你好" },
+  谢谢: { yue: "多谢", minnan: "多谢 / to-sia", shanghai: "谢谢侬", sichuan: "谢谢" },
+  吃饭: { yue: "食饭", minnan: "食饭 / tsia̍h-pn̄g", shanghai: "吃饭", sichuan: "吃饭" },
+  再见: { yue: "再见 / 拜拜", minnan: "再会", shanghai: "再会", sichuan: "再见" },
+};
+
+function buildDialectComparison(word) {
+  const entry = COMPARISON_MAP[word] || {};
+  return SUPPORTED_DIALECT_IDS.map((d) => ({
+    dialect: d,
+    label: getDialectMeta(d).label,
+    text: entry[d] || "（暂无数据）",
+  }));
+}
+
+function generateRandomChallenge(dialect, type) {
+  if (type === "tone") {
+    const guide = getToneGuide(dialect);
+    const ex = guide.examples?.[0] || { word: "诗", pinyin: "si1", meaning: "诗" };
+    return {
+      title: "声调挑战",
+      question: `请读出「${ex.word}」的声调`,
+      answer: ex.tone,
+      hint: ex.pinyin,
+    };
+  }
+  if (type === "phrase") {
+    const phrases = dialectLearningData[dialect]?.phrases?.greeting || [];
+    const p = phrases[0] || { yue: "你好", zh: "你好" };
+    return {
+      title: "短语挑战",
+      question: `请跟读：${p.yue}`,
+      answer: p.zh,
+      hint: p.pinyin || "",
+    };
+  }
+  // 默认 quiz
+  const q = quizQuestions.medium?.[0] || { question: "「你好」用粤语怎么说？", options: ["你好", "拜拜"], correct: 0 };
+  return {
+    title: "选择题挑战",
+    question: q.question,
+    options: q.options,
+    answer: q.options[q.correct],
+  };
 }
 
 const quizQuestions = {
