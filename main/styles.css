@@ -30,6 +30,60 @@
   --focus: 0 0 0 3px rgba(83, 224, 164, 0.22);
 }
 
+/* 浅色主题变量 */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --bg-2: #ffffff;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-strong: #ffffff;
+  --surface-soft: rgba(15, 23, 42, 0.05);
+  --card: rgba(255, 255, 255, 0.96);
+  --text: #1a2332;
+  --muted: #6b7a90;
+  --muted-2: #445063;
+  --accent: #15a385;
+  --accent-2: #2b7fd4;
+  --accent-3: #c98a12;
+  --favorite: #c98a12;
+  --danger: #e53e5c;
+  --delete: #e53e5c;
+  --success: #15a385;
+  --border: rgba(15, 23, 42, 0.12);
+  --border-strong: rgba(15, 23, 42, 0.22);
+  --shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+  --shadow-soft: 0 12px 34px rgba(15, 23, 42, 0.08);
+  --focus: 0 0 0 3px rgba(21, 163, 133, 0.2);
+}
+
+/* 自动主题：跟随系统偏好 */
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"] {
+    color-scheme: light;
+    --bg: #f4f6fb;
+    --bg-2: #ffffff;
+    --surface: rgba(255, 255, 255, 0.92);
+    --surface-strong: #ffffff;
+    --surface-soft: rgba(15, 23, 42, 0.05);
+    --card: rgba(255, 255, 255, 0.96);
+    --text: #1a2332;
+    --muted: #6b7a90;
+    --muted-2: #445063;
+    --accent: #15a385;
+    --accent-2: #2b7fd4;
+    --accent-3: #c98a12;
+    --favorite: #c98a12;
+    --danger: #e53e5c;
+    --delete: #e53e5c;
+    --success: #15a385;
+    --border: rgba(15, 23, 42, 0.12);
+    --border-strong: rgba(15, 23, 42, 0.22);
+    --shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+    --shadow-soft: 0 12px 34px rgba(15, 23, 42, 0.08);
+    --focus: 0 0 0 3px rgba(21, 163, 133, 0.2);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -2188,4 +2242,48 @@ select:focus {
     right: 12px;
     left: 12px;
   }
+}
+
+/* ==================== 主题切换按钮 ==================== */
+.nav-theme-btn {
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 6px 10px;
+  min-width: auto;
+}
+
+/* ==================== OAuth 登录 ==================== */
+.auth-oauth {
+  margin: 12px 0 4px;
+}
+
+.btn-oauth {
+  width: 100%;
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+
+.btn-oauth:hover {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 14px 0 6px;
+  color: var(--muted);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-divider span {
+  padding: 0 12px;
 }

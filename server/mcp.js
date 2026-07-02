@@ -73,6 +73,35 @@ const tools = [
     },
   },
   {
+    name: "translate_dialect",
+    description: "在中文与指定方言之间进行词汇翻译。基于本地词典匹配，返回方言词形、注音与释义。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        text: {
+          type: "string",
+          minLength: 1,
+          description: "要翻译的文本（中文或方言词汇）。",
+        },
+        dialect: {
+          type: "string",
+          enum: SUPPORTED_DIALECT_IDS,
+          default: "yue",
+          description: "方言代码：yue=粤语，minnan/hokkien=闽南话，shanghai/shanghainese=上海话，sichuan=四川话等。",
+        },
+        direction: {
+          type: "string",
+          enum: ["zh_to_dialect", "dialect_to_zh"],
+          default: "zh_to_dialect",
+          description: "翻译方向：zh_to_dialect=中文译为方言，dialect_to_zh=方言译为中文。",
+        },
+        limit: { type: "integer", minimum: 1, maximum: 20, default: 8 },
+      },
+      required: ["text"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "generate_practice_quiz",
     description: "基于方言词典动态生成选择题练习。用户要求出题、练习、测验、考我时调用。返回可在对话中直接作答的题目列表。",
     inputSchema: {
@@ -327,6 +356,36 @@ function searchDialectDictionary(args = {}) {
     .slice(0, limit);
 }
 
+function translateDialect(args = {}) {
+  const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
+  const text = String(args.text || "").trim();
+  const direction = args.direction === "dialect_to_zh" ? "dialect_to_zh" : "zh_to_dialect";
+  const limit = Math.min(Math.max(Number(args.limit) || 8, 1), 20);
+  if (!text) return { dialect, direction, source: "", results: [] };
+
+  const entries = loadDictionaries()[dialect] || [];
+  const query = normalizeText(text);
+  const results = entries
+    .filter((entry) => {
+      const term = normalizeText(entry.term);
+      const trad = normalizeText(entry.trad);
+      const reading = normalizeText(entry.reading);
+      const meaning = normalizeText(entry.meaning);
+      if (direction === "dialect_to_zh") {
+        return term.includes(query) || trad.includes(query) || reading.includes(query);
+      }
+      return meaning.includes(query) || term.includes(query);
+    })
+    .slice(0, limit)
+    .map((entry) => ({
+      term: entry.term,
+      reading: entry.reading || "",
+      meaning: entry.meaning || "",
+    }));
+
+  return { dialect, direction, source: text, results };
+}
+
 function generatePracticeQuiz(args = {}) {
   const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect)
     ? args.dialect
@@ -470,6 +529,14 @@ async function validateToolArgs(name, args = {}) {
     return null;
   }
 
+  if (name === "translate_dialect") {
+    const textCheck = await checkInput(String(args.text || ""), { source: "tool" });
+    if (!textCheck.allowed) {
+      return { error: textCheck.message || "翻译参数未通过安全检查" };
+    }
+    return null;
+  }
+
   if (name === "retrieve_memory") {
     const queryCheck = await checkInput(String(args.query || ""), { source: "tool" });
     if (!queryCheck.allowed) {
@@ -500,6 +567,7 @@ async function callTool(name, args, req = null) {
 
   if (name === "get_user_progress") return summarizeProgress(args);
   if (name === "search_dialect_dictionary") return searchDialectDictionary(args);
+  if (name === "translate_dialect") return translateDialect(args);
   if (name === "generate_practice_quiz") return generatePracticeQuiz(args);
 
   if (name === "get_tone_guide") return getToneGuide(args);
