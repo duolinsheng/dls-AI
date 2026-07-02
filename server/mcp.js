@@ -335,17 +335,26 @@ function generatePracticeQuiz(args = {}) {
   const entries = (loadDictionaries()[dialect] || []).filter((entry) => entry.term && entry.meaning);
   const pool = [...entries].sort(() => Math.random() - 0.5).slice(0, Math.max(count * 4, count));
 
-  return pool.slice(0, count).map((entry, index) => {
-    const distractors = pool
-      .filter((item) => item.term !== entry.term)
-      .slice(index, index + 3)
-      .map((item) => item.meaning || item.term);
-    const options = [entry.meaning, ...distractors].slice(0, 4).sort(() => Math.random() - 0.5);
+  return pool.slice(0, count).map((entry) => {
+    const answer = entry.meaning;
+    const distractorPool = [...pool]
+      .filter((item) => item.term !== entry.term && item.meaning && item.meaning !== answer)
+      .sort(() => Math.random() - 0.5);
+    const seen = new Set([answer]);
+    const distractors = [];
+    for (const item of distractorPool) {
+      if (distractors.length >= 3) break;
+      if (!seen.has(item.meaning)) {
+        seen.add(item.meaning);
+        distractors.push(item.meaning);
+      }
+    }
+    const options = [answer, ...distractors].sort(() => Math.random() - 0.5);
     return {
       question: `「${entry.term}」的意思是什么？${entry.reading ? `（${entry.reading}）` : ""}`,
       options,
-      correct: Math.max(0, options.indexOf(entry.meaning)),
-      answer: entry.meaning,
+      correct: Math.max(0, options.indexOf(answer)),
+      answer,
       dialect,
     };
   });
@@ -444,6 +453,44 @@ async function validateToolArgs(name, args = {}) {
     }
     return null;
   }
+
+  if (name === "get_word_examples") {
+    const termCheck = await checkInput(String(args.term || ""), { source: "tool" });
+    if (!termCheck.allowed) {
+      return { error: termCheck.message || "例句查询参数未通过安全检查" };
+    }
+    return null;
+  }
+
+  if (name === "get_dialect_comparison") {
+    const wordCheck = await checkInput(String(args.word || ""), { source: "tool" });
+    if (!wordCheck.allowed) {
+      return { error: wordCheck.message || "对比查询参数未通过安全检查" };
+    }
+    return null;
+  }
+
+  if (name === "retrieve_memory") {
+    const queryCheck = await checkInput(String(args.query || ""), { source: "tool" });
+    if (!queryCheck.allowed) {
+      return { error: queryCheck.message || "记忆检索参数未通过安全检查" };
+    }
+    return null;
+  }
+
+  if (name === "write_memory") {
+    const facts = Array.isArray(args.facts) ? args.facts : [args.fact || args.text || ""];
+    for (const raw of facts) {
+      const text = String(raw || "");
+      if (!text.trim()) continue;
+      const factCheck = await checkInput(text, { source: "tool" });
+      if (!factCheck.allowed) {
+        return { error: factCheck.message || "记忆写入内容未通过安全检查" };
+      }
+    }
+    return null;
+  }
+
   return null;
 }
 
@@ -472,11 +519,31 @@ async function callTool(name, args, req = null) {
   return { error: `Unknown tool: ${name}` };
 }
 
+const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
+
 function readRequestBody(req) {
   return new Promise((resolve, reject) => {
+    const declared = Number(req.headers["content-length"] || 0);
+    if (declared > MAX_REQUEST_BODY_BYTES) {
+      reject(new Error("Request body too large"));
+      return;
+    }
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let totalLen = 0;
+    let aborted = false;
+    req.on("data", (chunk) => {
+      if (aborted) return;
+      totalLen += chunk.length;
+      if (totalLen > MAX_REQUEST_BODY_BYTES) {
+        aborted = true;
+        reject(new Error("Request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => {
+      if (aborted) return;
       const raw = Buffer.concat(chunks).toString("utf8");
       if (!raw.trim()) return resolve({});
       try {
@@ -579,7 +646,7 @@ async function handleMcpRequest(req, res, requestPath) {
       }
       if (body.method === "tools/call") {
         const params = body.params || {};
-        const toolResult = await callTool(params.name, params.arguments || {});
+        const toolResult = await callTool(params.name, params.arguments || {}, req);
         return sendJson(res, 200, {
           jsonrpc: "2.0",
           id: body.id,
@@ -604,6 +671,9 @@ async function handleMcpRequest(req, res, requestPath) {
   } catch (err) {
     if (err.message === "Invalid JSON") {
       return sendJson(res, 400, { error: "请求体不是有效 JSON" });
+    }
+    if (err.message === "Request body too large") {
+      return sendJson(res, 413, { error: "请求体过大" });
     }
     console.error("[McpError]", err);
     return sendJson(res, 500, { error: "MCP server error" });
@@ -646,6 +716,8 @@ function getWordExamples(args = {}) {
   const dialect = SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue";
   const term = String(args.term || "").trim();
   const limit = Math.min(Math.max(Number(args.limit) || 3, 1), 6);
+  if (!term) return [];
+
   // 简单示例库
   const bank = {
     yue: {
@@ -656,9 +728,22 @@ function getWordExamples(args = {}) {
     },
   };
   const list = (bank[dialect] && bank[dialect][term]) || [];
-  return list.length
-    ? list.slice(0, limit)
-    : Array.from({ length: limit }, () => ({ yue: term, zh: term, pinyin: "", note: "示例" }));
+  if (list.length) return list.slice(0, limit);
+
+  // 回退到词典条目，避免返回伪造的"示例"
+  const dict = loadDictionaries()[dialect] || [];
+  const entry = dict.find((e) => e.term === term || e.trad === term);
+  if (entry && (entry.reading || entry.meaning)) {
+    return [
+      {
+        yue: entry.term,
+        zh: entry.meaning || "",
+        pinyin: entry.reading || "",
+        note: "来自词典条目",
+      },
+    ];
+  }
+  return [];
 }
 
 const COMPARISON = {
@@ -670,11 +755,19 @@ const COMPARISON = {
 
 function getDialectComparison(args = {}) {
   const word = String(args.word || "").trim();
+  if (!word) return [];
   const entry = COMPARISON[word] || {};
-  return SUPPORTED_DIALECT_IDS.map((d) => ({
-    dialect: d,
-    text: entry[d] || "（暂无）",
-  }));
+  return SUPPORTED_DIALECT_IDS.map((d) => {
+    if (entry[d]) return { dialect: d, text: entry[d] };
+    // 回退到词典检索，避免一律返回"（暂无）"
+    const dict = loadDictionaries()[d] || [];
+    const match = dict.find((e) => e.term === word || e.trad === word);
+    if (match) {
+      const text = match.reading ? `${match.term}（${match.reading}）` : match.term;
+      return { dialect: d, text };
+    }
+    return { dialect: d, text: "（暂无）" };
+  });
 }
 
 function getRandomChallenge(args = {}) {
