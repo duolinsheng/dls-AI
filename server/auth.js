@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 
@@ -13,6 +14,20 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MIN_PASSWORD_LEN = 6;
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/;
 const ADMIN_USERNAME = "admin114514Chessbrain";
+
+// OAuth（GitHub）配置，通过环境变量启用
+const OAUTH_PROVIDER = (process.env.OAUTH_PROVIDER || "").toLowerCase();
+const GITHUB_CLIENT_ID = process.env.GITHUB_CLIENT_ID || "";
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || "";
+const OAUTH_REDIRECT_URI =
+  process.env.OAUTH_REDIRECT_URI ||
+  `http://127.0.0.1:${process.env.PORT || 8080}/auth/oauth/github/callback`;
+
+// API 限流配置（基于 IP 的内存滑动计数）
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_DEFAULT_MAX = 60;
+const RATE_LIMIT_STRICT_MAX = 10;
+const rateLimitBuckets = new Map();
 
 const USER_ROLES = ["student", "parent", "teacher", "admin"];
 const REGISTERABLE_ROLES = ["student", "parent", "teacher"];
@@ -489,8 +504,215 @@ function saveParentSettings(userId, body) {
   return { status: 200, ok: true };
 }
 
+function getClientIp(req) {
+  const fwd = req.headers["x-forwarded-for"];
+  if (fwd) return String(fwd).split(",")[0].trim();
+  return (req.socket && req.socket.remoteAddress) || "unknown";
+}
+
+// 基于 IP + 作用域的滑动窗口限流：返回 { allowed, retryAfter }
+function checkRateLimit(req, scope, max, windowMs = RATE_LIMIT_WINDOW_MS) {
+  const ip = getClientIp(req);
+  const key = `${ip}:${scope}`;
+  const now = Date.now();
+  let bucket = rateLimitBuckets.get(key);
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + windowMs };
+  }
+  bucket.count += 1;
+  rateLimitBuckets.set(key, bucket);
+  // 定期清理过期桶，避免内存无限增长
+  if (rateLimitBuckets.size > 5000) {
+    for (const [k, val] of rateLimitBuckets) {
+      if (now >= val.resetAt) rateLimitBuckets.delete(k);
+    }
+  }
+  if (bucket.count > max) {
+    return { allowed: false, retryAfter: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+  }
+  return { allowed: true };
+}
+
+function rateLimitRespond(req, res, scope, max) {
+  const result = checkRateLimit(req, scope, max);
+  if (!result.allowed) {
+    res.setHeader("Retry-After", String(result.retryAfter));
+    sendJson(res, 429, { error: "请求过于频繁，请稍后再试" });
+    return false;
+  }
+  return true;
+}
+
+// ==================== OAuth（GitHub） ====================
+
+const oauthStates = new Map();
+
+function createOAuthState() {
+  const state = crypto.randomBytes(16).toString("hex");
+  oauthStates.set(state, { createdAt: Date.now() });
+  if (oauthStates.size > 1000) {
+    const now = Date.now();
+    for (const [k, v] of oauthStates) {
+      if (now - v.createdAt > 10 * 60 * 1000) oauthStates.delete(k);
+    }
+  }
+  return state;
+}
+
+function consumeOAuthState(state) {
+  const entry = oauthStates.get(state);
+  if (!entry) return false;
+  oauthStates.delete(state);
+  return Date.now() - entry.createdAt <= 10 * 60 * 1000;
+}
+
+function httpsJsonRequest(method, urlStr, { headers = {}, body = null } = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(urlStr);
+    const req = https.request(
+      {
+        method,
+        hostname: u.hostname,
+        path: u.pathname + u.search,
+        headers: { Accept: "application/json", ...headers },
+      },
+      (resp) => {
+        let data = "";
+        resp.on("data", (chunk) => (data += chunk));
+        resp.on("end", () => {
+          let json = null;
+          try {
+            json = data ? JSON.parse(data) : null;
+          } catch {
+            json = null;
+          }
+          resolve({ status: resp.statusCode, json, raw: data });
+        });
+      },
+    );
+    req.on("error", reject);
+    if (body) req.write(typeof body === "string" ? body : JSON.stringify(body));
+    req.end();
+  });
+}
+
+async function githubExchangeCode(code) {
+  const res = await httpsJsonRequest("POST", "https://github.com/login/oauth/access_token", {
+    headers: { "Content-Type": "application/json" },
+    body: {
+      client_id: GITHUB_CLIENT_ID,
+      client_secret: GITHUB_CLIENT_SECRET,
+      code,
+      redirect_uri: OAUTH_REDIRECT_URI,
+    },
+  });
+  return res.json || {};
+}
+
+async function githubFetchProfile(accessToken) {
+  const res = await httpsJsonRequest("GET", "https://api.github.com/user", {
+    headers: { Authorization: `Bearer ${accessToken}`, "User-Agent": "dls-ai-auth" },
+  });
+  return res.json || null;
+}
+
+function findOrCreateOAuthUser(provider, profile) {
+  const data = loadUsers();
+  const oauthId = String(profile.id);
+  let user = data.users.find(
+    (u) => u.oauthProvider === provider && String(u.oauthId) === oauthId,
+  );
+  if (user) {
+    if (profile.name && !user.displayName) user.displayName = profile.name;
+    saveUsers(data);
+    return user;
+  }
+
+  const safeLogin = String(profile.login || profile.id).replace(/[^a-zA-Z0-9_]/g, "_");
+  let username = `${provider}_${safeLogin}`;
+  let suffix = 0;
+  while (data.users.some((u) => u.username.toLowerCase() === username.toLowerCase())) {
+    suffix += 1;
+    username = `${provider}_${safeLogin}_${suffix}`;
+  }
+
+  user = {
+    id: crypto.randomUUID(),
+    username,
+    displayName: profile.name || profile.login || username,
+    role: DEFAULT_ROLE,
+    password: null,
+    oauthProvider: provider,
+    oauthId,
+    createdAt: Date.now(),
+  };
+  data.users.push(user);
+  saveUsers(data);
+  return user;
+}
+
+// OAuth 回调后重定向回前端，携带 token 或错误标识
+function oauthRedirect(res, payload) {
+  const params = new URLSearchParams();
+  if (payload.error) {
+    params.set("oauth_error", payload.error);
+  } else if (payload.token) {
+    params.set("oauth_token", payload.token);
+    if (payload.user) params.set("oauth_user", JSON.stringify(payload.user));
+  }
+  res.writeHead(302, { Location: `/?${params.toString()}` });
+  res.end();
+}
+
 async function handleAuthRequest(req, res, requestPath) {
   try {
+    // 全局限流：每个 IP 每分钟 60 次请求
+    if (!rateLimitRespond(req, res, "general", RATE_LIMIT_DEFAULT_MAX)) return;
+
+    // 敏感操作（登录/注册/OAuth）加严限流：每分钟 10 次
+    const isStrictPath =
+      requestPath === "/auth/login" ||
+      requestPath === "/auth/register" ||
+      requestPath.startsWith("/auth/oauth/");
+    if (isStrictPath && !rateLimitRespond(req, res, "strict", RATE_LIMIT_STRICT_MAX)) return;
+
+    // ---------- OAuth（GitHub） ----------
+    if (requestPath === "/auth/oauth/github" && req.method === "GET") {
+      if (OAUTH_PROVIDER !== "github" || !GITHUB_CLIENT_ID) {
+        return sendJson(res, 503, { error: "GitHub OAuth 未配置，请设置 GITHUB_CLIENT_ID 等环境变量" });
+      }
+      const state = createOAuthState();
+      const authorizeUrl =
+        `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(GITHUB_CLIENT_ID)}` +
+        `&redirect_uri=${encodeURIComponent(OAUTH_REDIRECT_URI)}` +
+        `&scope=read:user&state=${encodeURIComponent(state)}`;
+      res.writeHead(302, { Location: authorizeUrl });
+      res.end();
+      return;
+    }
+
+    if (requestPath.startsWith("/auth/oauth/github/callback") && req.method === "GET") {
+      const callbackUrl = new URL(`http://localhost${req.url || ""}`);
+      const code = callbackUrl.searchParams.get("code") || "";
+      const state = callbackUrl.searchParams.get("state") || "";
+      const errorParam = callbackUrl.searchParams.get("error") || "";
+      if (errorParam || !code) return oauthRedirect(res, { error: "oauth_cancelled" });
+      if (!consumeOAuthState(state)) return oauthRedirect(res, { error: "oauth_state_invalid" });
+      try {
+        const tokenJson = await githubExchangeCode(code);
+        const accessToken = tokenJson && tokenJson.access_token;
+        if (!accessToken) return oauthRedirect(res, { error: "oauth_token_failed" });
+        const profile = await githubFetchProfile(accessToken);
+        if (!profile || !profile.id) return oauthRedirect(res, { error: "oauth_profile_failed" });
+        const user = findOrCreateOAuthUser("github", profile);
+        const token = createSession(user.id);
+        return oauthRedirect(res, { token, user: publicUser(user) });
+      } catch (err) {
+        console.error("[OAuthError]", err);
+        return oauthRedirect(res, { error: "oauth_server_error" });
+      }
+    }
+
     if (requestPath === "/auth/register" && req.method === "POST") {
       const body = await readRequestBody(req);
       const result = registerUser(body);

@@ -257,16 +257,64 @@ function refreshAppAfterAuthChange() {
   if (typeof updateProgressStats === "function") updateProgressStats();
 }
 
+const OAUTH_ERROR_MESSAGES = {
+  oauth_cancelled: "已取消 GitHub 登录",
+  oauth_state_invalid: "登录状态校验失败，请重试",
+  oauth_token_failed: "GitHub 授权失败，请重试",
+  oauth_profile_failed: "无法获取 GitHub 用户信息",
+  oauth_server_error: "OAuth 服务异常，请稍后重试",
+};
+
+function handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("oauth_token");
+  const error = params.get("oauth_error");
+  if (!token && !error) return;
+
+  // 清理 URL 中的 OAuth 参数
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  if (error) {
+    navigateTo("auth");
+    showAuthMessage(OAUTH_ERROR_MESSAGES[error] || "GitHub 登录失败", true);
+    updateNavAuthUI();
+    return;
+  }
+
+  let user = null;
+  try {
+    user = JSON.parse(params.get("oauth_user") || "null");
+  } catch {
+    user = null;
+  }
+  setAuthSession(token, user || {});
+  updateNavAuthUI();
+  refreshAppAfterAuthChange();
+  if (typeof showPixelToast === "function") {
+    const name = user ? user.displayName || user.username : "";
+    showPixelToast(`👋 GitHub 登录成功${name ? "，欢迎 " + name : ""}`);
+  }
+  // 拉取最新用户信息以校验会话
+  authFetchMe();
+  navigateTo("home");
+}
+
 function initAuthUI() {
   document.getElementById("authTabLogin")?.addEventListener("click", () => switchAuthTab("login"));
   document.getElementById("authTabRegister")?.addEventListener("click", () => switchAuthTab("register"));
   document.getElementById("loginForm")?.addEventListener("submit", handleLoginSubmit);
   document.getElementById("registerForm")?.addEventListener("submit", handleRegisterSubmit);
+  document.getElementById("oauthGithubBtn")?.addEventListener("click", () => {
+    // OAuth 起点必须是整页跳转（服务端 302 到 GitHub）
+    window.location.href = "/auth/oauth/github";
+  });
   document.getElementById("logoutBtn")?.addEventListener("click", async () => {
     await authLogout();
     if (typeof showPixelToast === "function") showPixelToast("已退出登录");
     navigateTo("home");
   });
+
+  handleOAuthCallback();
 
   authFetchMe().then((user) => {
     if (user) {

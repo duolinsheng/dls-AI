@@ -349,7 +349,40 @@ function updateWorkspaceNav() {
   }
 }
 
+const THEME_KEY = "dls-ai-theme";
+const THEME_CYCLE = ["auto", "light", "dark"];
+const THEME_ICON = { auto: "🌗", light: "☀️", dark: "🌙" };
+const THEME_LABEL = { auto: "跟随系统", light: "浅色", dark: "深色" };
+
+function getTheme() {
+  return THEME_CYCLE.includes(localStorage.getItem(THEME_KEY)) ? localStorage.getItem(THEME_KEY) : "auto";
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const btn = document.getElementById("navThemeBtn");
+  if (btn) {
+    btn.textContent = THEME_ICON[theme] || "🌗";
+    btn.title = `主题：${THEME_LABEL[theme] || "自动"}（点击切换）`;
+  }
+}
+
+function cycleTheme() {
+  const next = THEME_CYCLE[(THEME_CYCLE.indexOf(getTheme()) + 1) % THEME_CYCLE.length];
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+  if (typeof showPixelToast === "function") {
+    showPixelToast(`🎨 主题已切换为：${THEME_LABEL[next]}`);
+  }
+}
+
+function initThemeToggle() {
+  applyTheme(getTheme());
+  document.getElementById("navThemeBtn")?.addEventListener("click", cycleTheme);
+}
+
 function initRoleFeatures() {
+  initThemeToggle();
   updateWorkspaceNav();
   const origUpdateNav = window.updateNavAuthUI;
   window.updateNavAuthUI = function () {
