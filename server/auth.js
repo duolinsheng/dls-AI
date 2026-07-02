@@ -193,7 +193,7 @@ function validateRegisterInput(body) {
   }
 
   if (!USERNAME_PATTERN.test(username)) {
-    return { error: "用户名需为 3-20 位字母、数字或下划线", status: 400 };
+    return { error: "用户名需为 3-32 位字母、数字或下划线", status: 400 };
   }
   if (password.length < MIN_PASSWORD_LEN) {
     return { error: `密码至少 ${MIN_PASSWORD_LEN} 位`, status: 400 };
@@ -254,11 +254,31 @@ function saveUserData(userId, payload) {
   return { status: 200, saved: true };
 }
 
+const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
+
 function readRequestBody(req) {
   return new Promise((resolve, reject) => {
+    const declared = Number(req.headers["content-length"] || 0);
+    if (declared > MAX_REQUEST_BODY_BYTES) {
+      reject(new Error("Request body too large"));
+      return;
+    }
     const chunks = [];
-    req.on("data", (chunk) => chunks.push(chunk));
+    let totalLen = 0;
+    let aborted = false;
+    req.on("data", (chunk) => {
+      if (aborted) return;
+      totalLen += chunk.length;
+      if (totalLen > MAX_REQUEST_BODY_BYTES) {
+        aborted = true;
+        reject(new Error("Request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => {
+      if (aborted) return;
       const raw = Buffer.concat(chunks).toString("utf8");
       if (!raw.trim()) {
         resolve({});
@@ -559,6 +579,9 @@ async function handleAuthRequest(req, res, requestPath) {
   } catch (err) {
     if (err.message === "Invalid JSON") {
       return sendJson(res, 400, { error: "请求体不是有效 JSON" });
+    }
+    if (err.message === "Request body too large") {
+      return sendJson(res, 413, { error: "请求体过大" });
     }
     console.error("[AuthError]", err);
     sendJson(res, 500, { error: "服务器错误" });
