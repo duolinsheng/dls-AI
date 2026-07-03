@@ -486,8 +486,6 @@ button {
   color: var(--muted);
   font-weight: 500;
 }
-  flex: 0 0 auto;
-}
 
 .nav-btn {
   min-height: 40px;
