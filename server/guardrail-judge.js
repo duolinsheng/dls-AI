@@ -2,7 +2,7 @@ const http = require("http");
 const https = require("https");
 
 const OLLAMA_URL = (process.env.GUARDRAIL_OLLAMA_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
-const GUARDRAIL_MODEL = process.env.GUARDRAIL_MODEL || "qwen2.5:1.5b";
+const GUARDRAIL_MODEL = process.env.GUARDRAIL_MODEL || "qwen3.5:0.8b";
 const GUARDRAIL_TIMEOUT_MS = Number(process.env.GUARDRAIL_TIMEOUT_MS) || 15000;
 const AI_ENABLED = process.env.GUARDRAIL_AI_ENABLED !== "0";
 

@@ -1,0 +1,12 @@
+{
+  "name": "dictionary-researcher",
+  "version": "1.0.0",
+  "description": "在本地方言词典中检索与学习任务相关的词条，并返回有来源的结构化结果。",
+  "inputs": ["task", "dialect"],
+  "outputs": ["matches", "note"],
+  "constraints": [
+    "仅查询服务端内置词典",
+    "不访问网络或文件系统中的其他路径",
+    "没有匹配项时明确说明，不编造词条"
+  ]
+}

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>多邻省 AI 学习助手</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260718-onboarding-entry" />
     <script>
       // 尽早应用保存的主题，避免加载闪烁
       (function () {
@@ -23,6 +23,7 @@
       </div>
       <ul class="nav-menu">
         <li><button class="nav-btn" data-page="home">🏠 主页</button></li>
+        <li><button type="button" class="nav-btn nav-onboarding-btn" data-onboarding-trigger>🧭 新手引导</button></li>
         <li><button class="nav-btn" data-page="chat">💬 AI对话</button></li>
         <li><button class="nav-btn" data-page="translate">🌐 翻译</button></li>
         <li class="nav-group" data-group-pages="dictionary phrases daily quiz tones">
@@ -68,6 +69,7 @@
         <header class="hero">
           <h1>多邻省 AI 学习助手</h1>
           <p>支持 Ollama AI 多种方言对话与学习</p>
+          <button type="button" class="hero-onboarding-btn" data-onboarding-trigger>🧭 第一次使用？从这里开始</button>
         </header>
 
         <div class="features-grid">
@@ -787,9 +789,47 @@
       </section>
     </main>
 
+    <div
+      id="onboardingModal"
+      class="onboarding-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboardingTitle"
+      hidden
+    >
+      <div class="onboarding-card">
+        <div class="onboarding-header">
+          <span class="onboarding-badge">新手引导</span>
+          <button type="button" id="skipOnboardingBtn" class="onboarding-skip">跳过</button>
+        </div>
+        <div class="onboarding-step" data-onboarding-step="0">
+          <div class="onboarding-icon">👋</div>
+          <h2 id="onboardingTitle">欢迎来到多邻省 AI</h2>
+          <p>用 AI 对话、翻译和练习，循序渐进学习你感兴趣的方言。</p>
+        </div>
+        <div class="onboarding-step" data-onboarding-step="1" hidden>
+          <div class="onboarding-icon">⚙️</div>
+          <h2>先确认模型连接</h2>
+          <p>打开设置，选择服务商、模型与连接地址。使用本地 Ollama 时，建议选择已安装的模型。</p>
+        </div>
+        <div class="onboarding-step" data-onboarding-step="2" hidden>
+          <div class="onboarding-icon">💬</div>
+          <h2>从一句话开始</h2>
+          <p>例如输入“粤语的你好怎么读？”；AI 会根据需要查询词典并给出学习建议。</p>
+        </div>
+        <div class="onboarding-progress" aria-label="引导进度">
+          <span class="active"></span><span></span><span></span>
+        </div>
+        <div class="onboarding-actions">
+          <button type="button" id="onboardingBackBtn" class="btn secondary" hidden>上一步</button>
+          <button type="button" id="onboardingNextBtn" class="btn">下一步</button>
+        </div>
+      </div>
+    </div>
+
     <script src="./auth.js"></script>
     <script src="./markdown.js"></script>
-    <script src="./app.js?v=20260619-chat-tools"></script>
+    <script src="./app.js?v=20260718-onboarding-entry"></script>
     <script src="./role-features.js"></script>
   </body>
 </html>

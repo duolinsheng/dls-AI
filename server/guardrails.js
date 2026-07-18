@@ -12,6 +12,19 @@ const MAX_FEEDBACK_PER_DAY = 200;
 
 const HARD_INPUT_RULES = [
   {
+    id: "jailbreak",
+    severity: "block",
+    pattern:
+      /ignore\s+(all\s+)?(previous\s+)?instructions|jailbreak|\bDAN\b|忽略.*(规则|指令|系统)|绕过.*(安全|审核)/i,
+    message: "检测到试图绕过安全规则的请求，请专注于方言学习相关问题。",
+  },
+  {
+    id: "harmful",
+    severity: "block",
+    pattern: /如何\s*(制作|制造).*(炸弹|毒品|武器)|自杀\s*方法/i,
+    message: "该话题超出方言学习助手的服务范围。",
+  },
+  {
     id: "pii_request",
     severity: "block",
     pattern: /(身份证|银行卡|信用卡).*(号|号码)|告诉我.*(密码|pin码)|社工库|开盒/i,
@@ -33,32 +46,6 @@ const HARD_OUTPUT_RULES = [
     message: "回复可能包含敏感凭据，已被拦截。",
   },
 ];
-
-const FALLBACK_SEMANTIC_RULES = {
-  input: [
-    {
-      id: "jailbreak",
-      severity: "block",
-      pattern:
-        /ignore\s+(all\s+)?(previous\s+)?instructions|jailbreak|\bDAN\b|忽略.*(规则|指令|系统)|绕过.*(安全|审核)/i,
-      message: "检测到试图绕过安全规则的请求，请专注于方言学习相关问题。",
-    },
-    {
-      id: "harmful",
-      severity: "block",
-      pattern: /如何\s*(制作|制造).*(炸弹|毒品|武器)|自杀\s*方法/i,
-      message: "该话题超出方言学习助手的服务范围。",
-    },
-  ],
-  output: [
-    {
-      id: "harmful_output",
-      severity: "block",
-      pattern: /步骤[:：]\s*\d+.*(制作|合成).*(炸弹|毒品|武器)|详细.*自杀\s*方法/i,
-      message: "回复内容不符合安全规范，无法展示。",
-    },
-  ],
-};
 
 function ensureDataDirs() {
   fs.mkdirSync(FEEDBACK_DIR, { recursive: true });
@@ -141,18 +128,10 @@ function runHardRules(raw, stage) {
   return runRules(raw, rules);
 }
 
-function runFallbackSemanticRules(raw, stage) {
-  return runRules(raw, FALLBACK_SEMANTIC_RULES[stage] || []);
-}
-
 async function runAiJudge(raw, stage, context) {
   const aiResult = await judgeWithAI(raw, stage, context);
   if (aiResult.skipped) {
-    return {
-      violations: runFallbackSemanticRules(raw, stage),
-      message: "",
-      judge: "rules",
-    };
+    throw new Error("大模型安全审核已禁用");
   }
 
   return {
@@ -222,10 +201,16 @@ async function checkContent(text, stage, context = {}) {
     if (!result.allowed) return result;
     if (aiJudge.message && !result.message) result.message = aiJudge.message;
   } catch (err) {
-    console.warn("[GuardrailAI] fallback to rules:", err.message);
-    const fallbackViolations = runFallbackSemanticRules(raw, stage);
-    applyViolations(result, fallbackViolations, "rules_fallback");
-    result.fallbackReason = err.message;
+    console.warn("[GuardrailAI] blocked because AI is unavailable:", err.message);
+    result.allowed = false;
+    result.judge = "ai_unavailable";
+    result.violations.push({
+      id: "ai_unavailable",
+      severity: "block",
+      message: "大模型安全审核服务不可用，已拒绝执行请求。",
+    });
+    result.message = result.violations[0].message;
+    return result;
   }
 
   if (stage === "output") {

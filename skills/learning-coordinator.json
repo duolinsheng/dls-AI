@@ -1,0 +1,12 @@
+{
+  "name": "learning-coordinator",
+  "version": "1.0.0",
+  "description": "将用户的方言学习任务拆分为可验证的小步骤，并合并经过安全审核的分支结果。",
+  "inputs": ["task", "dialect", "mode"],
+  "outputs": ["intent", "steps"],
+  "constraints": [
+    "仅规划方言学习、翻译、词典、练习和声调任务",
+    "不生成或执行外部命令",
+    "只合并结构化且已通过安全验证的分支结果"
+  ]
+}

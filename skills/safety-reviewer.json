@@ -1,0 +1,12 @@
+{
+  "name": "safety-reviewer",
+  "version": "1.0.0",
+  "description": "在协同任务 Fork 前后执行输入与输出安全校验；阻断越狱、有害内容、隐私和凭据泄露。",
+  "inputs": ["task", "context"],
+  "outputs": ["allowed", "message", "violations"],
+  "constraints": [
+    "安全检查失败时拥有合并否决权",
+    "不得返回原始敏感数据",
+    "遵循服务端 guardrails 的长度、PII 和凭据规则"
+  ]
+}

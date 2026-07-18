@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { Worker } = require("worker_threads");
 const {
   checkInput,
   checkOutput,
@@ -11,6 +12,8 @@ const {
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const MEMORY_DIR = path.join(DATA_DIR, "memory");
+const SKILLS_DIR = path.join(__dirname, "..", "skills");
+const AGENT_WORKER_FILE = path.join(__dirname, "agent-worker.js");
 const MINNAN_DICT_FILE = path.join(__dirname, "..", "main", "read", "minnan_dictionary.csv");
 const SHANGHAI_DICT_FILE = path.join(__dirname, "..", "main", "read", "shanghai_dictionary.csv");
 const SICHUAN_DICT_FILE = path.join(__dirname, "..", "main", "read", "sichuan_dictionary.csv");
@@ -201,10 +204,51 @@ const tools = [
       additionalProperties: false,
     },
   },
+  {
+    name: "collaborate_learning_task",
+    description: "将方言学习任务拆分给规划、词典和安全审核 Agent 并行处理，再由协调器合并结果。仅处理学习、翻译、词典、练习和声调相关任务。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: {
+          type: "string",
+          minLength: 1,
+          maxLength: 800,
+          description: "需要协同处理的方言学习任务。",
+        },
+        dialect: {
+          type: "string",
+          enum: SUPPORTED_DIALECT_IDS,
+          default: "yue",
+        },
+        mode: {
+          type: "string",
+          enum: ["auto", "translation", "practice", "dictionary"],
+          default: "auto",
+        },
+      },
+      required: ["task"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 function ensureMemoryDir() {
   fs.mkdirSync(MEMORY_DIR, { recursive: true });
+}
+
+function loadSkill(skillName) {
+  if (!/^[a-z][a-z0-9-]{1,48}$/.test(String(skillName || ""))) return null;
+  const filePath = path.join(SKILLS_DIR, `${skillName}.json`);
+  if (!isPathInsideDirectory(SKILLS_DIR, filePath) || !fs.existsSync(filePath)) return null;
+  const skill = readJsonFile(filePath, null);
+  return skill && typeof skill === "object" ? skill : null;
+}
+
+function isPathInsideDirectory(rootPath, targetPath) {
+  const root = path.resolve(rootPath);
+  const target = path.resolve(targetPath);
+  return target === root || target.startsWith(`${root}${path.sep}`);
 }
 
 function readJsonFile(filePath, fallback) {
@@ -504,6 +548,115 @@ function clearMemory(req, body = {}) {
   return { ok: true };
 }
 
+function createCollaborationContext(args = {}) {
+  return {
+    task: String(args.task || "").trim().slice(0, 800),
+    dialect: SUPPORTED_DIALECT_IDS.includes(args.dialect) ? args.dialect : "yue",
+    mode: ["translation", "practice", "dictionary"].includes(args.mode) ? args.mode : "auto",
+  };
+}
+
+async function runCollaborativeLearningTask(args = {}) {
+  const context = createCollaborationContext(args);
+  const inputCheck = await checkInput(context.task, { source: "multi_agent" });
+  if (!inputCheck.allowed) {
+    return { error: inputCheck.message || "协同任务未通过安全检查", security: inputCheck };
+  }
+
+  // Fork：每个 Agent 在独立、不可变的上下文副本中工作；Promise.all 使 I/O 分支并发执行。
+  const branches = [
+    runAgentWorker("learning-coordinator", { ...context }, loadSkill("learning-coordinator")),
+    runDictionaryAgent({ ...context }, loadSkill("dictionary-researcher")),
+    runSafetyAgent({ ...context }, loadSkill("safety-reviewer")),
+  ];
+  const [plan, research, safety] = await Promise.all(branches);
+
+  // Merge：安全 Agent 拥有最终否决权；协调器只合并经过白名单验证的结构化结果。
+  if (!safety.allowed) {
+    return {
+      status: "blocked",
+      forkCount: branches.length,
+      security: safety,
+      message: safety.message || "协同结果未通过安全审核。",
+    };
+  }
+  const merged = {
+    status: "completed",
+    forkCount: branches.length,
+    mode: context.mode,
+    dialect: context.dialect,
+    plan,
+    research,
+    security: safety,
+  };
+  const outputCheck = await checkOutput(JSON.stringify(merged), { source: "multi_agent" });
+  if (!outputCheck.allowed) {
+    return { status: "blocked", forkCount: branches.length, security: outputCheck };
+  }
+  return { ...merged, security: { ...safety, sanitized: outputCheck.sanitizedText !== undefined } };
+}
+
+function runAgentWorker(agent, context, skill) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(AGENT_WORKER_FILE, {
+      workerData: { agent, context, skill },
+    });
+    const timeout = setTimeout(() => {
+      worker.terminate();
+      reject(new Error(`${agent} 协同分支超时`));
+    }, 5000);
+    worker.once("message", (result) => {
+      clearTimeout(timeout);
+      resolve(result);
+    });
+    worker.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    worker.once("exit", (code) => {
+      if (code !== 0) {
+        clearTimeout(timeout);
+        reject(new Error(`${agent} 协同分支异常退出（${code}）`));
+      }
+    });
+  });
+}
+
+async function runCoordinatorAgent(context, skill) {
+  const intent = context.mode === "auto"
+    ? (/测验|练习|出题/.test(context.task) ? "practice" : /查|词典|意思|读音/.test(context.task) ? "dictionary" : "translation")
+    : context.mode;
+  return {
+    agent: "learning-coordinator",
+    skill: skill?.name || "learning-coordinator",
+    intent,
+    steps: intent === "practice"
+      ? ["确认学习目标", "基于词典生成练习", "给出复习建议"]
+      : ["确认方言与任务", "检索可靠词典资料", "整理可学习的结果"],
+  };
+}
+
+async function runDictionaryAgent(context, skill) {
+  const matches = searchDialectDictionary({ dialect: context.dialect, query: context.task, limit: 5 });
+  return {
+    agent: "dictionary-researcher",
+    skill: skill?.name || "dictionary-researcher",
+    matches,
+    note: matches.length ? "结果来自本地词典。" : "本地词典未找到完全匹配项，建议改用更短的关键词。",
+  };
+}
+
+async function runSafetyAgent(context, skill) {
+  const check = await checkInput(context.task, { source: "multi_agent_safety" });
+  return {
+    agent: "safety-reviewer",
+    skill: skill?.name || "safety-reviewer",
+    allowed: check.allowed,
+    message: check.message || "",
+    violations: check.violations || [],
+  };
+}
+
 async function validateToolArgs(name, args = {}) {
   if (name === "search_dialect_dictionary") {
     const queryCheck = await checkInput(String(args.query || ""), { source: "tool" });
@@ -558,6 +711,13 @@ async function validateToolArgs(name, args = {}) {
     return null;
   }
 
+  if (name === "collaborate_learning_task") {
+    const taskCheck = await checkInput(String(args.task || ""), { source: "multi_agent" });
+    if (!taskCheck.allowed) {
+      return { error: taskCheck.message || "协同任务未通过安全检查" };
+    }
+  }
+
   return null;
 }
 
@@ -583,6 +743,7 @@ async function callTool(name, args, req = null) {
     const body = { facts: args.facts, fact: args.fact, source: args.source };
     return writeMemory(req || { headers: {}, socket: {} }, body);
   }
+  if (name === "collaborate_learning_task") return runCollaborativeLearningTask(args);
 
   return { error: `Unknown tool: ${name}` };
 }

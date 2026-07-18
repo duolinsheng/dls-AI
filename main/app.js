@@ -17,6 +17,10 @@ const saveConfigBtn = document.getElementById("saveConfig");
 
 const chatInputEl = document.getElementById("chatInput");
 const sendChatBtn = document.getElementById("sendChat");
+const onboardingModalEl = document.getElementById("onboardingModal");
+const onboardingNextBtn = document.getElementById("onboardingNextBtn");
+const onboardingBackBtn = document.getElementById("onboardingBackBtn");
+const skipOnboardingBtn = document.getElementById("skipOnboardingBtn");
 
 const directionEl = document.getElementById("direction");
 const translateInputEl = document.getElementById("translateInput");
@@ -127,8 +131,74 @@ function initNavigation() {
   navigateTo(lastPage);
 }
 
+const ONBOARDING_STORAGE_KEY = "dls-ai-onboarding-completed";
+let onboardingStepIndex = 0;
+
+function completeOnboarding() {
+  try {
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, "1");
+  } catch {
+    /* localStorage 不可用时仅关闭当前引导 */
+  }
+  onboardingModalEl.hidden = true;
+}
+
+function openOnboarding() {
+  if (!onboardingModalEl) return;
+  onboardingStepIndex = 0;
+  onboardingModalEl.hidden = false;
+  renderOnboardingStep();
+  skipOnboardingBtn.focus();
+}
+
+function renderOnboardingStep() {
+  const steps = Array.from(document.querySelectorAll("[data-onboarding-step]"));
+  const indicators = Array.from(document.querySelectorAll(".onboarding-progress span"));
+  steps.forEach((step, index) => {
+    step.hidden = index !== onboardingStepIndex;
+  });
+  indicators.forEach((indicator, index) => {
+    indicator.classList.toggle("active", index === onboardingStepIndex);
+  });
+  onboardingBackBtn.hidden = onboardingStepIndex === 0;
+  onboardingNextBtn.textContent = onboardingStepIndex === steps.length - 1 ? "开始学习" : "下一步";
+}
+
+function initOnboarding() {
+  if (!onboardingModalEl) return;
+  onboardingNextBtn.addEventListener("click", () => {
+    const stepCount = document.querySelectorAll("[data-onboarding-step]").length;
+    if (onboardingStepIndex < stepCount - 1) {
+      onboardingStepIndex += 1;
+      renderOnboardingStep();
+      return;
+    }
+    completeOnboarding();
+    navigateTo("chat");
+    chatInputEl.focus();
+  });
+  onboardingBackBtn.addEventListener("click", () => {
+    onboardingStepIndex = Math.max(0, onboardingStepIndex - 1);
+    renderOnboardingStep();
+  });
+  skipOnboardingBtn.addEventListener("click", completeOnboarding);
+  document.querySelectorAll("[data-onboarding-trigger]").forEach((trigger) => {
+    trigger.addEventListener("click", openOnboarding);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !onboardingModalEl.hidden) completeOnboarding();
+  });
+
+  try {
+    if (localStorage.getItem(ONBOARDING_STORAGE_KEY) === "1") return;
+  } catch {
+    /* 继续展示引导，避免首次用户错过入口 */
+  }
+  openOnboarding();
+}
+
 const CHAT_SYSTEM_PROMPT =
-  "你是一个耐心的方言学习助手，精通粤语、台山话、上海话、闽南话、潮州话、温州话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语/台山话，请提供粤拼、台山话常用读音提示或本地罗马化，并给出标准中文解释\n2. 若涉及闽南话/Hokkien，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话/温州话，请提供常用吴语罗马化/IPA 或读音提示和标准中文解释\n4. 若涉及潮州话，请提供潮州话拼音/白话字或读音提示和标准中文解释\n5. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n6. 解释方言字词时，给出常见写法、注音和生活场景例句\n7. 如有词典参考信息，请优先参考其中的注音和含义\n8. 用户指定方言时，不要混用另一种方言\n9. 学习类问题由系统自动处理工具调用（包括：出题、每日一句、短语、声调指南、例句、方言对比、随机挑战、进度、打开页面），你只需给出友好回答或补充解释即可\n10. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
+  "你是一个耐心的方言学习助手，精通粤语、台山话、上海话、闽南话、潮州话、温州话和四川话发音、语法和词汇。回答简洁、准确、友好。\n规则：\n1. 若涉及粤语/台山话，请提供粤拼、台山话常用读音提示或本地罗马化，并给出标准中文解释\n2. 若涉及闽南话/Hokkien，请提供台罗/白话字和标准中文解释\n3. 若涉及上海话/温州话，请提供常用吴语罗马化/IPA 或读音提示和标准中文解释\n4. 若涉及潮州话，请提供潮州话拼音/白话字或读音提示和标准中文解释\n5. 若涉及四川话，请说明四川话常用说法、读音提示和标准中文解释\n6. 解释方言字词时，给出常见写法、注音和生活场景例句\n7. 如有词典参考信息，请优先参考其中的注音和含义\n8. 用户指定方言时，不要混用另一种方言\n9. 需要词典、出题、每日一句、短语、声调、例句、方言对比、挑战或进度信息时，使用已提供的工具；收到工具结果后，必须基于结果生成完整的自然语言答复，不能只返回空内容或工具调用。\n10. 回答请使用 Markdown 格式（标题、列表、表格、代码块等）以便阅读";
 
 const conversation = [
   {
@@ -762,46 +832,6 @@ function toApiTools(mcpTools) {
 
 let mcpToolsCache = null;
 
-const LOCAL_INPUT_GUARD_PATTERNS = [
-  {
-    pattern:
-      /ignore\s+(all\s+)?(previous\s+)?instructions|jailbreak|\bDAN\b|忽略.*(规则|指令|系统)|绕过.*(安全|审核)/i,
-    message: "检测到试图绕过安全规则的请求，请专注于方言学习相关问题。",
-  },
-  {
-    pattern: /如何\s*(制作|制造).*(炸弹|毒品|武器)|自杀\s*方法/i,
-    message: "该话题超出方言学习助手的服务范围。",
-  },
-];
-
-const LOCAL_OUTPUT_GUARD_PATTERNS = [
-  {
-    pattern: /\b1[3-9]\d{9}\b|\b\d{15,18}\b|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
-    message: "回复可能包含个人敏感信息，已被安全策略拦截。",
-  },
-  {
-    pattern: /(api[_-]?key|secret[_-]?key)\s*[:=]\s*\S+/i,
-    message: "回复可能包含敏感凭据，已被拦截。",
-  },
-];
-
-function localGuardrailCheck(text, stage) {
-  const rules = stage === "output" ? LOCAL_OUTPUT_GUARD_PATTERNS : LOCAL_INPUT_GUARD_PATTERNS;
-  for (const rule of rules) {
-    if (rule.pattern.test(text)) {
-      return { allowed: false, message: rule.message, violations: [{ id: "local", message: rule.message }] };
-    }
-  }
-  if (text.length > (stage === "input" ? 4000 : 12000)) {
-    return {
-      allowed: false,
-      message: "内容过长，请缩短后重试。",
-      violations: [{ id: "length", message: "内容过长" }],
-    };
-  }
-  return { allowed: true, sanitizedText: text, violations: [] };
-}
-
 async function checkGuardrail(text, stage, context = {}) {
   try {
     const res = await fetch("/mcp/guardrail/check", {
@@ -809,10 +839,20 @@ async function checkGuardrail(text, stage, context = {}) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stage, text, context }),
     });
-    if (!res.ok) return localGuardrailCheck(text, stage);
+    if (!res.ok) {
+      return {
+        allowed: false,
+        message: "大模型安全审核服务暂不可用，已拒绝执行请求。",
+        violations: [{ id: "ai_guardrail_unavailable", severity: "block" }],
+      };
+    }
     return await res.json();
   } catch {
-    return localGuardrailCheck(text, stage);
+    return {
+      allowed: false,
+      message: "无法连接大模型安全审核服务，已拒绝执行请求。",
+      violations: [{ id: "ai_guardrail_unavailable", severity: "block" }],
+    };
   }
 }
 
@@ -950,6 +990,7 @@ async function requestChatCompletion(messages, options = {}) {
     body.temperature = 0.3;
   } else {
     body.keep_alive = -1;
+    body.think = false;
     body.options = { temperature: 0.3 };
   }
 
@@ -1010,6 +1051,7 @@ async function runChatWithTools(messages, onToolCall) {
   const toolResults = [];
   const workingMessages = [...messages];
   let toolsDisabled = false;
+  let finalAnswerAttempts = 0;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
     let data;
@@ -1030,8 +1072,21 @@ async function runChatWithTools(messages, onToolCall) {
     const toolCalls = toolsDisabled ? null : assistantMsg.tool_calls;
 
     if (!toolCalls?.length) {
+      const content = (assistantMsg.content || "").trim();
+      if (!content && usedTools.length && finalAnswerAttempts < 1) {
+        toolsDisabled = true;
+        finalAnswerAttempts += 1;
+        workingMessages.push({
+          role: "user",
+          content: "请根据上方工具结果，用中文直接给出完整最终答复。至少包含一条有用信息；不要调用工具，也不要返回空内容。",
+        });
+        continue;
+      }
+      if (!content && usedTools.length) {
+        throw new Error("模型未能根据工具结果生成最终答复，请更换支持工具调用的模型后重试。");
+      }
       return {
-        content: (assistantMsg.content || "").trim(),
+        content,
         usedTools,
         toolResults,
         toolsDisabled,
@@ -1060,6 +1115,13 @@ async function runChatWithTools(messages, onToolCall) {
       if (toolName) toolMessage.name = toolName;
       workingMessages.push(toolMessage);
     }
+
+    // 工具结果一旦回传就锁定为最终回答阶段，避免小模型再次陷入工具调用循环。
+    toolsDisabled = true;
+    workingMessages.push({
+      role: "user",
+      content: "工具结果已返回。请基于这些结果直接生成完整最终答复，不要再调用工具，也不要返回空内容。",
+    });
   }
 
   throw new Error("工具调用次数过多，请简化问题后重试。");
@@ -2678,38 +2740,25 @@ sendChatBtn.addEventListener("click", async () => {
 
   showLoading(true);
   try {
-    // 优先尝试意图识别，直接调用工具（绕过模型 function calling）
     let usedTools = [];
     let toolResults = [];
     let reply = "";
 
-    const intentMatch = await runIntentToolFallback(input);
-    if (intentMatch.usedTools.length) {
-      usedTools = intentMatch.usedTools;
-      toolResults = intentMatch.toolResults;
-      reply = buildToolFallbackReply(intentMatch);
-    }
-
-    // 如果意图识别未匹配，再尝试让模型调用工具
-    if (!usedTools.length) {
-      const modelResult = await runChatWithTools(conversation, (toolName) => {
-        showToolStatus(toolName);
-      });
+    // 工具选择和回复均由大模型决定；不再使用本地正则意图兜底。
+    const modelResult = await runChatWithTools(conversation, (toolName) => {
+      showToolStatus(toolName);
+    });
+    removeToolStatus();
+    if (modelResult.usedTools?.length) {
+      usedTools = modelResult.usedTools;
+      toolResults = modelResult.toolResults || [];
+      reply = modelResult.content || reply;
+    } else {
       removeToolStatus();
-      if (modelResult.usedTools?.length) {
-        usedTools = modelResult.usedTools;
-        toolResults = modelResult.toolResults || [];
-        reply = modelResult.content || reply;
-      } else {
-        removeToolStatus();
-      }
     }
 
-    if (!reply && !toolResults.length) {
-      throw new Error("模型返回为空，请检查模型是否支持工具调用。");
-    }
-    if (!reply && toolResults.length) {
-      reply = buildToolFallbackReply({ usedTools, toolResults });
+    if (!reply) {
+      throw new Error("模型在工具调用后未生成最终回复，请检查当前模型是否支持工具调用。");
     }
 
     const outputGuard = await checkGuardrail(reply, "output", { source: "chat" });
@@ -2954,10 +3003,8 @@ translateBtn.addEventListener("click", async () => {
     translateOutputEl.textContent = safeResult;
     addToTranslateHistory(input, safeResult, direction);
   } catch (err) {
-    const fallback = localTranslate(input, direction);
     const friendlyErr = getFriendlyError(err);
-    translateOutputEl.textContent = `${fallback}\n\n（${friendlyErr}；已回退到本地基础词典）`;
-    addToTranslateHistory(input, fallback, direction);
+    translateOutputEl.textContent = `翻译失败：${friendlyErr}`;
   } finally {
     translateBtn.disabled = false;
   }
@@ -4426,6 +4473,7 @@ updateProgressStats();
 
 // 初始化页面导航
 initNavigation();
+initOnboarding();
 
 // 后台预加载词典，减少首次查询/RAG 等待
 loadYueDictionary().catch(() => {});
