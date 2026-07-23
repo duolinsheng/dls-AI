@@ -1,0 +1,58 @@
+{
+  "generated_at": "2026-07-23T02:26:57.999Z",
+  "source": "logs/run_log.jsonl",
+  "total_requests": 134,
+  "successful_requests": 79,
+  "failed_requests": 55,
+  "success_rate": 0.5896,
+  "average_latency_ms": 14,
+  "p50_latency_ms": 1,
+  "p95_latency_ms": 92,
+  "by_path": {
+    "/auth/data": {
+      "requests": 6,
+      "errors": 0,
+      "average_latency_ms": 1
+    },
+    "/auth/login": {
+      "requests": 18,
+      "errors": 7,
+      "average_latency_ms": 55
+    },
+    "/auth/me": {
+      "requests": 12,
+      "errors": 6,
+      "average_latency_ms": 0
+    },
+    "/auth/register": {
+      "requests": 42,
+      "errors": 30,
+      "average_latency_ms": 20
+    },
+    "/health/security": {
+      "requests": 8,
+      "errors": 0,
+      "average_latency_ms": 2
+    },
+    "/mcp/call": {
+      "requests": 30,
+      "errors": 6,
+      "average_latency_ms": 1
+    },
+    "/mcp/guardrail/check": {
+      "requests": 6,
+      "errors": 0,
+      "average_latency_ms": 2
+    },
+    "/mcp/not-a-route": {
+      "requests": 6,
+      "errors": 6,
+      "average_latency_ms": 1
+    },
+    "/mcp/tools": {
+      "requests": 6,
+      "errors": 0,
+      "average_latency_ms": 1
+    }
+  }
+}

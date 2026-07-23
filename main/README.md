@@ -1,61 +1,35 @@
-# dls-ai-main（目录名：`main`）
+# 前端模块
 
-多邻省 AI 学习助手（MVP）：
+`main/` 是多邻省 AI 学习助手的浏览器端界面，提供方言对话、翻译、词典、练习、学习记录和模型配置。
 
-- 基础 AI 对话
-- 上海话 / 中文 互译
+支持的学习方言：粤语、台山话、闽南话/Hokkien、上海话、潮州话、温州话和四川话。
 
-## 1. 本地运行
+## 正确运行方式
 
-### 使用 npm（推荐）
+完整功能依赖仓库根目录的 Node 服务，它提供认证、MCP 工具、安全护栏和本地模型代理：
 
 ```bash
-# 在仓库根目录 dls-AI
-cd dls-AI
+# 在仓库根目录
 npm install
 npm start
 ```
 
-然后访问 `http://localhost:8080`。
+访问 `http://localhost:8080`。
 
-兼容旧方式（仍可用）：
+直接打开 `index.html` 只能浏览静态界面，不能使用认证、MCP 工具、请求日志或 `/api/*` 模型代理，因此不作为作品集演示方式。
 
-```bash
-cd main
-npm start
-```
+## 模型配置
 
-### 其他方式
+页面可配置 OpenAI 兼容接口或 Ollama：
 
-这是纯前端静态项目，也可以直接打开 `index.html` 即可使用。
+- Base URL 默认是 `http://localhost:11434`
+- 默认模型为 `qwen3.5:4b`
+- OpenAI 兼容服务通常使用 `https://api.openai.com/v1` 等 API 根地址
 
-## 2. 模型配置说明
+配置保存在浏览器 `localStorage`；不要在录屏、截图或提交内容中暴露 API Key。
 
-页面中可配置：
+## 部署边界
 
-- `API 配置文件`（JSON 上传，含 `apiKey`）
-- `Base URL`（默认：`http://localhost:11434`）
-- `Model`（默认：`qwen3.5:4b`）
+GitHub Pages 工作流只发布本目录的静态文件。因此 Pages 版本不包含 Node 服务提供的认证、MCP、安全护栏、日志和模型代理；完整项目请使用 Node 服务部署。
 
-DeepSeek 可选择页面里的“连接方式 -> DeepSeek”，会自动填入：
-
-- `Base URL`: `https://api.deepseek.com/v1`
-- `Model`: `deepseek-chat`
-
-保存后会写入浏览器 `localStorage`。
-
-如果不配置 API Key（本地 Ollama 可不上传）：
-
-- AI 对话功能会提示先配置
-- 互译功能会自动使用本地基础词典兜底（仅用于演示，准确性有限）
-
-## 3. GitHub Pages 部署
-
-仓库已提供 GitHub Actions 工作流：`.github/workflows/deploy-pages.yml`。  
-推送到 `main` 分支后自动部署 `main` 目录到 Pages。
-
-你需要在 GitHub 仓库设置里确认：
-
-1. `Settings` -> `Pages` -> `Build and deployment` 选择 `GitHub Actions`
-2. 等待 `Deploy static site to Pages` 工作流成功
-3. 访问生成的 Pages 链接
+完整项目说明、评测与演示材料见仓库根目录 [README](../README.md)。

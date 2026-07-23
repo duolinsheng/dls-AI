@@ -1,0 +1,9 @@
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"health-001","path":"/health/security","status":200,"latency_ms":29,"pass":true,"error_code":null}
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"tools-001","path":"/mcp/tools","status":200,"latency_ms":2,"pass":true,"error_code":null}
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"tone-001","path":"/mcp/call","status":200,"latency_ms":3,"pass":true,"error_code":null}
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"comparison-001","path":"/mcp/call","status":200,"latency_ms":2,"pass":true,"error_code":null}
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"challenge-001","path":"/mcp/call","status":200,"latency_ms":1,"pass":true,"error_code":null}
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"progress-001","path":"/mcp/call","status":200,"latency_ms":2,"pass":true,"error_code":null}
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"safety-001","path":"/mcp/guardrail/check","status":200,"latency_ms":3,"pass":true,"error_code":null}
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"invalid-json-001","path":"/mcp/call","status":400,"latency_ms":1,"pass":true,"error_code":null}
+{"timestamp":"2026-07-23T02:24:46.206Z","source":"evaluation","sample_id":"not-found-001","path":"/mcp/not-a-route","status":404,"latency_ms":2,"pass":true,"error_code":null}

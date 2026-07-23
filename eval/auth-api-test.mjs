@@ -9,6 +9,9 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const casesFile = path.join(__dirname, "auth-test-cases.json");
 const { baseUrl, cases } = JSON.parse(fs.readFileSync(casesFile, "utf8"));
+const evalUser = process.env.EVAL_TEST_USERNAME || `eval_${Date.now()}`;
+const evalTeacher = `${evalUser}_teacher`;
+const evalPassword = process.env.EVAL_TEST_PASSWORD || "EvalPass1!";
 
 let passed = 0;
 let failed = 0;
@@ -30,13 +33,27 @@ async function request(method, urlPath, body, token) {
   return { status: res.status, data };
 }
 
+function materialize(value) {
+  if (typeof value === "string") {
+    return value
+      .replaceAll("$EVAL_USER", evalUser)
+      .replaceAll("$EVAL_TEACHER", evalTeacher)
+      .replaceAll("$EVAL_PASSWORD", evalPassword);
+  }
+  if (Array.isArray(value)) return value.map(materialize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, materialize(item)]));
+  }
+  return value;
+}
+
 function hasPath(obj, dotPath) {
   return dotPath.split(".").reduce((acc, key) => (acc && acc[key] != null ? acc[key] : null), obj) != null;
 }
 
 async function runCase(testCase) {
-  const { id, method, path: urlPath, body, expectStatus, expectFields = [] } = testCase;
-  const { status, data } = await request(method, urlPath, body);
+  const { id, method, path: urlPath, expectStatus, expectFields = [] } = testCase;
+  const { status, data } = await request(method, urlPath, materialize(testCase.body));
   let ok = status === expectStatus;
   for (const field of expectFields) {
     if (!hasPath(data, field)) ok = false;
@@ -57,16 +74,16 @@ async function runCase(testCase) {
   return data;
 }
 
-console.log(`=== Auth API 测试 (${baseUrl}) ===\n`);
+console.log(`=== Auth API 测试 (${baseUrl})，临时账号 ${evalUser} ===\n`);
 
 for (const testCase of cases) {
   await runCase(testCase);
 }
 
-const loginResult = await request("POST", "/auth/login", { username: "demo", password: "demo123" });
+const loginResult = await request("POST", "/auth/login", { username: evalUser, password: evalPassword });
 if (loginResult.status === 200 && loginResult.data.token) {
   const me = await request("GET", "/auth/me", null, loginResult.data.token);
-  if (me.status === 200 && me.data.user?.username === "demo") {
+  if (me.status === 200 && me.data.user?.username === evalUser) {
     console.log("✅ me_with_token");
     passed++;
   } else {

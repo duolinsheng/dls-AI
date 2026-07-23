@@ -8,7 +8,9 @@
     "dev": "node server.js",
     "tls:check": "node scripts/check-tls-config.mjs",
     "check:tls": "node scripts/check-tls-config.mjs",
-    "check:mcp": "node -e \"const m=require('./server/mcp'); console.log(JSON.stringify(m.tools.map(t=>t.name)))\""
+    "check:mcp": "node -e \"const m=require('./server/mcp'); console.log(JSON.stringify(m.tools.map(t=>t.name)))\"",
+    "eval": "node eval/run-evaluation.mjs",
+    "metrics": "node scripts/summarize-runtime-metrics.mjs"
   },
   "dependencies": {
     "http-proxy": "^1.18.1"

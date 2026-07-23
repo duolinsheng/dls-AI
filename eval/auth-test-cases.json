@@ -3,10 +3,23 @@
   "baseUrl": "http://127.0.0.1:8080",
   "cases": [
     {
-      "id": "login_demo_ok",
+      "id": "register_new_user",
+      "method": "POST",
+      "path": "/auth/register",
+      "body": {
+        "username": "$EVAL_USER",
+        "password": "$EVAL_PASSWORD",
+        "displayName": "评测新用户",
+        "role": "student"
+      },
+      "expectStatus": 201,
+      "expectFields": ["token", "user.username", "user.role"]
+    },
+    {
+      "id": "login_eval_user_ok",
       "method": "POST",
       "path": "/auth/login",
-      "body": { "username": "demo", "password": "demo123" },
+      "body": { "username": "$EVAL_USER", "password": "$EVAL_PASSWORD" },
       "expectStatus": 200,
       "expectFields": ["token", "user.username", "user.role"]
     },
@@ -14,21 +27,8 @@
       "id": "login_wrong_password",
       "method": "POST",
       "path": "/auth/login",
-      "body": { "username": "demo", "password": "wrong" },
+      "body": { "username": "$EVAL_USER", "password": "wrong" },
       "expectStatus": 401
-    },
-    {
-      "id": "register_new_user",
-      "method": "POST",
-      "path": "/auth/register",
-      "body": {
-        "username": "eval_new_user",
-        "password": "EvalPass1!",
-        "displayName": "评测新用户",
-        "role": "student"
-      },
-      "expectStatus": 201,
-      "expectFields": ["token", "user.username", "user.role"]
     },
     {
       "id": "register_missing_role",
@@ -60,7 +60,7 @@
       "method": "POST",
       "path": "/auth/register",
       "body": {
-        "username": "eval_teacher_user",
+        "username": "$EVAL_TEACHER",
         "password": "EvalPass1!",
         "displayName": "评测老师",
         "role": "teacher"
@@ -72,7 +72,7 @@
       "id": "register_duplicate",
       "method": "POST",
       "path": "/auth/register",
-      "body": { "username": "demo", "password": "demo123", "role": "student" },
+      "body": { "username": "$EVAL_USER", "password": "$EVAL_PASSWORD", "role": "student" },
       "expectStatus": 409
     },
     {

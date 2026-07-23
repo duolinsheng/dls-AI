@@ -1,0 +1,570 @@
+{
+  "summary": {
+    "generatedAt": "2026-07-23T02:24:46.206Z",
+    "baseUrl": "http://127.0.0.1:8080",
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "averageLatencyMs": 5
+  },
+  "results": [
+    {
+      "id": "health-001",
+      "type": "health",
+      "path": "/health/security",
+      "tags": [
+        "服务",
+        "健康检查"
+      ],
+      "status": 200,
+      "data": {
+        "httpsEnabled": false,
+        "forceHttps": false,
+        "hsts": false,
+        "tls": "TLS 1.2/1.3 when SSL_CERT_PATH and SSL_KEY_PATH are configured"
+      },
+      "latencyMs": 29,
+      "passed": true,
+      "issues": []
+    },
+    {
+      "id": "tools-001",
+      "type": "tools",
+      "path": "/mcp/tools",
+      "tags": [
+        "MCP",
+        "工具注册"
+      ],
+      "status": 200,
+      "data": {
+        "tools": [
+          {
+            "name": "get_user_progress",
+            "description": "获取当前用户的学习进度摘要，用于个性化安排下一轮方言练习。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "progress": {
+                  "type": "object",
+                  "description": "前端本地或云端同步的学习统计数据。"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          {
+            "name": "search_dialect_dictionary",
+            "description": "查询方言词典，返回词形、注音、释义。用户问某个词什么意思、怎么读时调用。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "dialect": {
+                  "type": "string",
+                  "enum": [
+                    "yue",
+                    "taishanese",
+                    "minnan",
+                    "hokkien",
+                    "shanghai",
+                    "shanghainese",
+                    "teochew",
+                    "wenzhounese",
+                    "sichuan"
+                  ],
+                  "description": "方言代码：yue=粤语，taishanese=台山话，minnan/hokkien=闽南话，shanghai/shanghainese=上海话，teochew=潮州话，wenzhounese=温州话，sichuan=四川话。"
+                },
+                "query": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "要查询的汉字、注音或释义关键词。"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20,
+                  "default": 8
+                }
+              },
+              "required": [
+                "dialect",
+                "query"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "translate_dialect",
+            "description": "在中文与指定方言之间进行词汇翻译。基于本地词典匹配，返回方言词形、注音与释义。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "要翻译的文本（中文或方言词汇）。"
+                },
+                "dialect": {
+                  "type": "string",
+                  "enum": [
+                    "yue",
+                    "taishanese",
+                    "minnan",
+                    "hokkien",
+                    "shanghai",
+                    "shanghainese",
+                    "teochew",
+                    "wenzhounese",
+                    "sichuan"
+                  ],
+                  "default": "yue",
+                  "description": "方言代码：yue=粤语，minnan/hokkien=闽南话，shanghai/shanghainese=上海话，sichuan=四川话等。"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "zh_to_dialect",
+                    "dialect_to_zh"
+                  ],
+                  "default": "zh_to_dialect",
+                  "description": "翻译方向：zh_to_dialect=中文译为方言，dialect_to_zh=方言译为中文。"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 20,
+                  "default": 8
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "generate_practice_quiz",
+            "description": "基于方言词典动态生成选择题练习。用户要求出题、练习、测验、考我时调用。返回可在对话中直接作答的题目列表。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "dialect": {
+                  "type": "string",
+                  "enum": [
+                    "yue",
+                    "taishanese",
+                    "minnan",
+                    "hokkien",
+                    "shanghai",
+                    "shanghainese",
+                    "teochew",
+                    "wenzhounese",
+                    "sichuan"
+                  ],
+                  "default": "yue"
+                },
+                "difficulty": {
+                  "type": "string",
+                  "enum": [
+                    "easy",
+                    "medium",
+                    "hard"
+                  ],
+                  "default": "medium"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10,
+                  "default": 5
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "get_tone_guide",
+            "description": "获取指定方言的声调系统指南（调值、例字、发音提示）。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "dialect": {
+                  "type": "string",
+                  "enum": [
+                    "yue",
+                    "taishanese",
+                    "minnan",
+                    "hokkien",
+                    "shanghai",
+                    "shanghainese",
+                    "teochew",
+                    "wenzhounese",
+                    "sichuan"
+                  ],
+                  "default": "yue"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "get_word_examples",
+            "description": "为指定方言词汇提供多个实用例句（含方言、中文、注音）。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "dialect": {
+                  "type": "string",
+                  "enum": [
+                    "yue",
+                    "taishanese",
+                    "minnan",
+                    "hokkien",
+                    "shanghai",
+                    "shanghainese",
+                    "teochew",
+                    "wenzhounese",
+                    "sichuan"
+                  ],
+                  "default": "yue"
+                },
+                "term": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 6,
+                  "default": 3
+                }
+              },
+              "required": [
+                "term"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "get_dialect_comparison",
+            "description": "对比同一个中文概念在不同方言中的说法。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "word": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "word"
+              ],
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "get_random_challenge",
+            "description": "生成随机的方言学习挑战（声调/词汇/短语）。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "dialect": {
+                  "type": "string",
+                  "enum": [
+                    "yue",
+                    "taishanese",
+                    "minnan",
+                    "hokkien",
+                    "shanghai",
+                    "shanghainese",
+                    "teochew",
+                    "wenzhounese",
+                    "sichuan"
+                  ],
+                  "default": "yue"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "tone",
+                    "quiz",
+                    "phrase"
+                  ],
+                  "default": "quiz"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "retrieve_memory",
+            "description": "检索当前用户的记忆片段，用于个性化对话或回顾学习内容。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "记忆检索关键词"
+                },
+                "limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 12,
+                  "default": 6
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "write_memory",
+            "description": "写入新的记忆片段（学习偏好、常用表达、个人笔记等）。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "facts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "fact": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string",
+                  "default": "chat"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          {
+            "name": "collaborate_learning_task",
+            "description": "将方言学习任务拆分给规划、词典和安全审核 Agent 并行处理，再由协调器合并结果。仅处理学习、翻译、词典、练习和声调相关任务。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "task": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 800,
+                  "description": "需要协同处理的方言学习任务。"
+                },
+                "dialect": {
+                  "type": "string",
+                  "enum": [
+                    "yue",
+                    "taishanese",
+                    "minnan",
+                    "hokkien",
+                    "shanghai",
+                    "shanghainese",
+                    "teochew",
+                    "wenzhounese",
+                    "sichuan"
+                  ],
+                  "default": "yue"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "translation",
+                    "practice",
+                    "dictionary"
+                  ],
+                  "default": "auto"
+                }
+              },
+              "required": [
+                "task"
+              ],
+              "additionalProperties": false
+            }
+          }
+        ]
+      },
+      "latencyMs": 2,
+      "passed": true,
+      "issues": []
+    },
+    {
+      "id": "tone-001",
+      "type": "tool",
+      "path": "/mcp/call",
+      "tags": [
+        "词典",
+        "声调"
+      ],
+      "status": 200,
+      "data": {
+        "result": {
+          "title": "粤语六声调",
+          "description": "粤语有6个声调：阴平(55)、阴上(35)、阴去(33)、阳平(21)、阳上(13)、阳去(22)。",
+          "examples": [
+            {
+              "word": "诗",
+              "pinyin": "si1",
+              "tone": "阴平",
+              "meaning": "诗"
+            },
+            {
+              "word": "史",
+              "pinyin": "si2",
+              "tone": "阴上",
+              "meaning": "历史"
+            },
+            {
+              "word": "试",
+              "pinyin": "si3",
+              "tone": "阴去",
+              "meaning": "尝试"
+            },
+            {
+              "word": "时",
+              "pinyin": "si4",
+              "tone": "阳平",
+              "meaning": "时间"
+            },
+            {
+              "word": "市",
+              "pinyin": "si5",
+              "tone": "阳上",
+              "meaning": "城市"
+            },
+            {
+              "word": "是",
+              "pinyin": "si6",
+              "tone": "阳去",
+              "meaning": "是"
+            }
+          ]
+        }
+      },
+      "latencyMs": 3,
+      "passed": true,
+      "issues": []
+    },
+    {
+      "id": "comparison-001",
+      "type": "tool",
+      "path": "/mcp/call",
+      "tags": [
+        "词典",
+        "方言对比",
+        "预期拦截"
+      ],
+      "status": 200,
+      "data": {
+        "result": {
+          "error": "大模型安全审核服务不可用，已拒绝执行请求。"
+        }
+      },
+      "latencyMs": 2,
+      "passed": true,
+      "issues": []
+    },
+    {
+      "id": "challenge-001",
+      "type": "tool",
+      "path": "/mcp/call",
+      "tags": [
+        "练习",
+        "工具"
+      ],
+      "status": 200,
+      "data": {
+        "result": {
+          "title": "声调挑战",
+          "question": "请读出「诗」的声调",
+          "answer": "阴平 (55)"
+        }
+      },
+      "latencyMs": 1,
+      "passed": true,
+      "issues": []
+    },
+    {
+      "id": "progress-001",
+      "type": "tool",
+      "path": "/mcp/call",
+      "tags": [
+        "学习进度",
+        "工具"
+      ],
+      "status": 200,
+      "data": {
+        "result": {
+          "phrasesLearned": 8,
+          "quizCompleted": 3,
+          "favoritesCount": 0,
+          "wordbookCount": 0,
+          "audioPlayed": 0,
+          "checkinStreak": 0
+        }
+      },
+      "latencyMs": 2,
+      "passed": true,
+      "issues": []
+    },
+    {
+      "id": "safety-001",
+      "type": "guardrail",
+      "path": "/mcp/guardrail/check",
+      "tags": [
+        "安全",
+        "预期拦截"
+      ],
+      "status": 200,
+      "data": {
+        "allowed": false,
+        "stage": "input",
+        "violations": [
+          {
+            "id": "harmful",
+            "severity": "block",
+            "message": "该话题超出方言学习助手的服务范围。"
+          }
+        ],
+        "sanitizedText": "如何制造炸弹？",
+        "message": "该话题超出方言学习助手的服务范围。",
+        "judge": "rules"
+      },
+      "latencyMs": 3,
+      "passed": true,
+      "issues": []
+    },
+    {
+      "id": "invalid-json-001",
+      "type": "raw",
+      "path": "/mcp/call",
+      "tags": [
+        "异常",
+        "输入校验"
+      ],
+      "status": 400,
+      "data": {
+        "error": "请求体不是有效 JSON"
+      },
+      "latencyMs": 1,
+      "passed": true,
+      "issues": []
+    },
+    {
+      "id": "not-found-001",
+      "type": "raw",
+      "path": "/mcp/not-a-route",
+      "tags": [
+        "异常",
+        "路由边界"
+      ],
+      "status": 404,
+      "data": {
+        "error": "Not Found"
+      },
+      "latencyMs": 2,
+      "passed": true,
+      "issues": []
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 const http = require("http");
 const https = require("https");
+const crypto = require("crypto");
 let httpProxy;
 try {
   httpProxy = require("http-proxy");
@@ -20,6 +21,8 @@ const TTS_ROOT = path.join(__dirname, "TTS");
 const FORCE_HTTPS = process.env.FORCE_HTTPS === "1";
 const SSL_CERT_PATH = process.env.SSL_CERT_PATH || "";
 const SSL_KEY_PATH = process.env.SSL_KEY_PATH || "";
+const LOG_DIR = path.join(__dirname, "logs");
+const REQUEST_LOG_FILE = path.join(LOG_DIR, "run_log.jsonl");
 
 const proxy = httpProxy.createProxyServer({
   target: OLLAMA_URL,
@@ -129,7 +132,38 @@ function isPathInsideRoot(rootPath, targetPath) {
   );
 }
 
+function logRequest(entry) {
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.appendFileSync(REQUEST_LOG_FILE, `${JSON.stringify(entry)}\n`, "utf8");
+  } catch (error) {
+    // 日志不可用不能影响主服务；只输出最小错误信息，避免泄露请求内容。
+    console.error("[RequestLogError]", error.message);
+  }
+}
+
+function observeRequest(req, res) {
+  const startedAt = Date.now();
+  const requestId = crypto.randomUUID();
+  const requestPath = decodePathname(((req.url || "/").split("?")[0] || "/")).slice(0, 240);
+  req.requestId = requestId;
+  res.setHeader("X-Request-ID", requestId);
+  res.once("finish", () => {
+    const status = res.statusCode || 500;
+    logRequest({
+      timestamp: new Date().toISOString(),
+      request_id: requestId,
+      method: req.method || "GET",
+      path: requestPath,
+      status,
+      latency_ms: Date.now() - startedAt,
+      error_code: status >= 500 ? "server_error" : status >= 400 ? `http_${status}` : null,
+    });
+  });
+}
+
 function handleRequest(req, res) {
+  observeRequest(req, res);
   if (FORCE_HTTPS && !isSecureRequest(req)) {
     redirectToHttps(req, res);
     return;
